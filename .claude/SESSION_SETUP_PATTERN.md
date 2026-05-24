@@ -31,24 +31,38 @@ first turn of a new session is productive instead of preparatory.
     README.md                          explains THIS repo's layout
     SESSION_SETUP_PATTERN.md           this file -- the methodology
     settings.local.json                Claude Code local settings (gitignored)
-    principles/                        short design-principle files (tracked)
+    principles/                        short design-principle files (tracked, shared)
       <aspect>.md                      e.g., tcb_and_verification.md
-    tasks/                             per-task working dirs (gitignored)
-      index.md                         registry: name, status, keywords, brief
-      <task_slug>/
-        CLAUDE.md                      task brief
-        commits.md, patch_plan.md, ...  working notes
+    designs/                           technical / architecture docs (tracked, shared)
+      <subject>.md                     e.g., brf_architecture.md
+    users/                             per-user working memory (see users/README.md)
+      README.md                        explains the per-user convention (tracked)
+      .contributors                    one line per active collaborator (tracked)
+      <name>/                          a single collaborator's working memory
+        tasks/                         (gitignored) per-task working dirs
+          index.md                     registry: name, status, keywords, brief
+          <task_slug>/
+            CLAUDE.md                  task brief
+            commits.md, patch_plan.md, ... working notes
+        notes/                         (gitignored) free-form per-session notes
     archive/                           retired memories with index
       README.md                        index: what was moved and why
 ```
+
+Multi-collaborator repos use the `users/<name>/` split so each
+contributor's task index and per-session memory stays isolated.
+Single-developer repos can keep using a flat `.claude/tasks/`
+(gitignored); both layouts coexist.
 
 ## What goes in repo-root `CLAUDE.md`
 
 Five sections, in order:
 
-1. **Task system.** Instruction to read `.claude/tasks/index.md` at
-   session start; ask before loading any task brief; propose status
-   updates on task switch.
+1. **Task system.** Instruction to read the active user's
+   `.claude/users/<name>/tasks/index.md` (or the flat
+   `.claude/tasks/index.md` in single-developer repos) at
+   session start; ask before loading any task brief; propose
+   status updates on task switch.
 2. **Design principles.** 3-5 invariants that drive non-obvious
    decisions in the repo. Short. The kind that flip "conservative"
    defaults.
@@ -80,17 +94,24 @@ task-specific (should not contaminate unrelated work).
 
 ## What's tracked in git vs not
 
-| Path                              | Tracked? | Why                                                      |
-|-----------------------------------|----------|----------------------------------------------------------|
-| `CLAUDE.md` (repo root)           | Yes      | Repo convention; collaborators benefit                   |
-| `.claude/README.md`               | Yes      | Explains the convention                                  |
-| `.claude/SESSION_SETUP_PATTERN.md`| Yes      | This methodology                                         |
-| `.claude/principles/*.md`         | Yes      | Design philosophy applies to all contributors            |
-| `.claude/tasks/`                  | No       | Per-developer working memory                             |
-| `.claude/settings.local.json`     | No       | Per-machine Claude Code settings                         |
+| Path                                          | Tracked? | Why                                                       |
+|-----------------------------------------------|----------|-----------------------------------------------------------|
+| `CLAUDE.md` (repo root)                       | Yes      | Repo convention; collaborators benefit                    |
+| `.claude/README.md`                           | Yes      | Explains the convention                                   |
+| `.claude/SESSION_SETUP_PATTERN.md`            | Yes      | This methodology                                          |
+| `.claude/principles/*.md`                     | Yes      | Design philosophy applies to all contributors             |
+| `.claude/designs/*.md`                        | Yes      | Shared architecture / recipe docs                         |
+| `.claude/users/README.md`                     | Yes      | Explains the per-user convention                          |
+| `.claude/users/.contributors`                 | Yes      | One line per active collaborator                          |
+| `.claude/users/<name>/tasks/`                 | No       | Per-user task working memory                              |
+| `.claude/users/<name>/notes/`                 | No       | Per-user free-form notes                                  |
+| `.claude/tasks/`                              | No       | Legacy flat task tree (single-developer repos)            |
+| `.claude/settings.local.json`                 | No       | Per-machine Claude Code settings                          |
 
-The repo `.gitignore` should include `.claude/tasks/` and (typically
-already) `.claude/settings.local.json`.
+The repo `.gitignore` should exclude both the legacy
+`/.claude/tasks/` and the per-user
+`/.claude/users/*/tasks/`, `/.claude/users/*/notes/` paths, plus
+the usual `.claude/settings.local.json`.
 
 **Exception for upstream-mirror clones**: if the repo is a personal
 clone of an upstream project that the user does NOT plan to push
@@ -116,17 +137,18 @@ is the worked example.
 
 ## Adding a new task
 
-1. Create `.claude/tasks/<task_slug>/CLAUDE.md` (the brief).
-   Sections: goal, scope/anti-scope, memory load list (split:
-   critical / helpful / skip), key files in repo, working principles,
-   open questions, submission state if it's a patch series.
+1. Create `.claude/users/<your-name>/tasks/<task_slug>/CLAUDE.md`
+   (the brief).  Sections: goal, scope/anti-scope, memory load
+   list (split: critical / helpful / skip), key files in repo,
+   working principles, open questions, upstream-submission state
+   if it's a patch series.
 2. Optionally add skeleton sibling files (e.g., `commits.md`,
    `patch_plan.md`) for working notes.
-3. Add an entry to `.claude/tasks/index.md` with status, keywords,
-   brief path, one-line goal. Set `status: active` if it's the
-   current focus.
-4. When done: `status: done`. Don't delete the brief immediately --
-   it's a record for adjacent future work. Consider moving it to
+3. Add an entry to `.claude/users/<your-name>/tasks/index.md` with
+   status, keywords, brief path, one-line goal.  Set
+   `status: active` if it's the current focus.
+4. When done: `status: done`.  Don't delete the brief immediately --
+   it's a record for adjacent future work.  Consider moving it to
    `.claude/archive/` with an index entry.
 
 **What counts as "active":** a task is active if it has open threads
@@ -172,17 +194,22 @@ Skip for small/exploratory repos -- the overhead exceeds the benefit.
 5. Copy `.claude/README.md` and `.claude/SESSION_SETUP_PATTERN.md`
    from this repo (or the microkernel canonical) as templates; adapt
    as needed.
-6. Update `.gitignore` to keep `.claude/tasks/` and
-   `.claude/settings.local.json` out (or use `.git/info/exclude` for
-   upstream-mirror clones).
-7. Create `.claude/tasks/index.md` and the first brief when the
-   first multi-session task appears.
+6. Update `.gitignore` to keep `.claude/users/*/tasks/`,
+   `.claude/users/*/notes/`, the legacy `.claude/tasks/`, and
+   `.claude/settings.local.json` out (or use `.git/info/exclude`
+   for upstream-mirror clones).  Create `.claude/users/README.md`
+   and a `.claude/users/.contributors` line so other contributors
+   know the convention.
+7. Create the first contributor's
+   `.claude/users/<name>/tasks/index.md` and the first brief when
+   the first multi-session task appears.
 
 ## Cross-machine sync
 
 - Tracked files travel via `git pull`.
-- `.claude/tasks/` is per-machine. To continue a task on another
-  machine, copy the relevant `tasks/<slug>/` dir manually.
+- `.claude/users/<name>/tasks/` is per-machine.  To continue a
+  task on another machine, copy the relevant `tasks/<slug>/`
+  dir manually.
 - Memory files are synced separately per
   `~/.claude/projects/-home-shardul/memory/reference_memory_sync.md`.
 

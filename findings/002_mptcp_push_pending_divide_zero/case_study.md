@@ -462,7 +462,7 @@ claim from two findings:
   does not generalise to a bug-class claim.
 
 **Two bugs on two surfaces is suggestive, not statistically
-significant.**  The talk's framing must continue to reflect
+significant.**  The project's framing continues to reflect
 that.
 
 ---
@@ -608,7 +608,8 @@ shardulsb08/brf   Mpiric extensions (this checkout)
 ```
 
 **Required attribution for any external artifact built on this
-finding** (slide deck, talk paper, blog post, lore message):
+finding** (slide deck, paper, blog post, lore message, any
+external presentation):
 
 - Hung, H. & Amiri Sani, A.  *BRF: Bug Reporting Framework — A
   Practical eBPF Runtime Fuzzer*.  arXiv:2305.08782; ACM venue

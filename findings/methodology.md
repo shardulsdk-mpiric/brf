@@ -1,8 +1,12 @@
 # Methodology: AI-augmented protocol-flow fuzzing for kernel transport security
 
-**Audience.** netdev / LPC / FOSDEM attendees evaluating whether to
-adopt this approach for a kernel transport-security subsystem of
-their own.  Kernel veterans reviewing the methodology under Q&A.
+**Audience.** Kernel networking practitioners evaluating whether
+to adopt this approach for a kernel transport-security subsystem
+of their own; kernel veterans reviewing the methodology under
+Q&A in any forum it surfaces.  This document is the project's
+documented methodology, written to stand on its own as
+substrate rather than as material tied to one specific
+presentation venue.
 
 **Companion evidence.** Two case studies are the load-bearing
 bug evidence; this document is the generalised methodology
@@ -166,11 +170,11 @@ ran it under VM smoke tests and read the kernel symbols it
 actually exercised.  Where the draft was wrong, Section 4 catalogs
 how it failed.
 
-This is the talk's substantive methodology claim.  It is **not**
-"AI accelerates harness authoring" (we have no controlled
-comparison; Section 8).  It is "AI drafts faster than humans
-verify, so the verification step is the rate-limiter — and that
-is the methodology's defensible shape."
+This is the project's substantive methodology claim.  It is
+**not** "AI accelerates harness authoring" (we have no
+controlled comparison; Section 8).  It is "AI drafts faster than
+humans verify, so the verification step is the rate-limiter —
+and that is the methodology's defensible shape."
 
 ### 3.3 Kfunc-aware struct_ops generation (Phase 3)
 
@@ -357,9 +361,9 @@ attributable.
 
 ## 4. What failed — honestly
 
-This section is the talk's credibility.  Per CLAUDE.md's standing
-principle ("AI use is in scope to discuss openly, not to hide"),
-the failures are the substance.
+This section is the methodology's credibility surface.  Per
+CLAUDE.md's standing principle ("AI use is in scope to discuss
+openly, not to hide"), the failures are the substance.
 
 ### 4.1 AI-drafted descriptions wrong in protocol semantics
 
@@ -624,7 +628,7 @@ Honest limits:
   is *suggestive*, not predictive.  N=2 is small.  The
   bug-finding *rate* is not extrapolatable from two data
   points, and a third finding (or a barren stretch) is the
-  observation that would change the picture.  The talk's
+  observation that would change the picture.  The project's
   framing is "the *method* produces harnesses that produce
   bugs"; the bug *rate* and *spacing* remain unknown.
 - **What the second finding *does* strengthen.**  The
@@ -655,12 +659,12 @@ Honest limits:
   "harness *finds more bugs than* the baseline" claim still
   requires the controlled run.  Both case studies flag this
   as a backfill before publication.  The prescriptive part
-  of the talk does not depend on it.
+  of the methodology does not depend on it.
 - **It does not prove the absence of AI-generated bugs in the
   harness.**  Several latent defects shipped to the corpus
-  before VM testing caught them (Section 4.2).  The talk's
-  honest version is: AI-augmented authoring is fast and full
-  of small defects; the human-VM-test loop is not optional.
+  before VM testing caught them (Section 4.2).  The honest
+  version is: AI-augmented authoring is fast and full of small
+  defects; the human-VM-test loop is not optional.
 - **It does not prove that the BPF struct_ops scheduler
   surface produces bugs.**  Phase 3 is implemented, the
   pipeline runs end-to-end, the verifier-accept rate is ~93%,
@@ -668,8 +672,8 @@ Honest limits:
   struct_ops/kfunc surface itself.  The reachability is
   demonstrated; the bug-finding from this surface is not.
 
-If the talk's "we found a bug" line is the only takeaway the
-audience receives, the audience has under-counted what the
+If "we found a bug" is the only takeaway a reader of this
+methodology absorbs, that reader has under-counted what the
 work actually demonstrates and over-counted what one bug
 proves.
 
@@ -719,7 +723,7 @@ imprecision and comment verbosity recurred across both
 findings, which is a methodology observation rather than a
 per-finding incident).
 
-The talk's defensible posture: *extend a published academic
+The project's defensible posture: *extend a published academic
 fuzzer with a methodology that demonstrably reaches new
 surfaces, be honest about where AI breaks, and let the
 prescriptive recipe stand on what it actually did rather than

@@ -101,8 +101,9 @@ git describe --tags                 # closest upstream tag, e.g.
   and bug reproducibility require a stable base.
 - Between campaigns: weekly update is reasonable.  More often if a
   maintainer announces a relevant fix has landed.
-- Before a publishable run (paper, talk demo, lore submission):
-  update to the latest export, then freeze for the run.
+- Before a publishable run (paper, external-presentation demo,
+  lore submission): update to the latest export, then freeze for
+  the run.
 - After a long absence (>1 month): update before doing anything
   else; the upstream-vs-our-tree drift can break our patches.
 

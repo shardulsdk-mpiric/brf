@@ -29,11 +29,20 @@ dashboard/app/.gcloudignore
 .vscode
 
 # Claude Code: per-developer / per-machine working state.
-# CLAUDE.md, .claude/README.md, .claude/SESSION_SETUP_PATTERN.md
-# and any .claude/principles/ files are tracked; everything below
-# is local-only.  See .claude/README.md for the full split.
+# CLAUDE.md, .claude/README.md, .claude/SESSION_SETUP_PATTERN.md,
+# .claude/designs/*.md, .claude/principles/*.md,
+# .claude/users/README.md, and .claude/users/.contributors are
+# tracked; everything below is local-only.  See .claude/README.md
+# and .claude/users/README.md for the full split.
 /.claude/tasks/
 /.claude/settings.local.json
+/.claude/worktrees/
+# Per-user working memory under .claude/users/<name>/ is local.
+# Tracked exceptions are pinned with negative patterns below.
+/.claude/users/*/tasks/
+/.claude/users/*/notes/
+!/.claude/users/README.md
+!/.claude/users/.contributors
 
 # Compiled test binaries from kernel_patches/mptcp_kcov/test_*.c
 # (the .c sources are tracked; only the build artifacts are local).

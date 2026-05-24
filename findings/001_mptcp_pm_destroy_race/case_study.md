@@ -359,7 +359,7 @@ from a single finding:
   ~0.34 reports/minute number is specific to this kernel build,
   syzkaller config (`procs: 6`), and corpus state.
 
-**One bug is suggestive, not proof.**  The talk's framing must reflect
+**One bug is suggestive, not proof.**  The project's framing reflects
 that.  (Update 2026-05-24: a *second* harness-found bug on a
 *different* MPTCP surface — kernel-PM `FLUSH_ADDRS` →
 `__mptcp_push_pending` divide-by-zero, see
@@ -468,7 +468,7 @@ section.
   defects (uninitialised `tcp_subflow_fd` array defaulting to stdin
   via `memset`; mptcp event header mis-parsing because the kernel
   emits `MPTcpExt:`, not `MPTCPExt:`).  Those would have shipped if
-  Shardul hadn't VM-tested.  The talk's honest version of this
+  Shardul hadn't VM-tested.  The honest version of this
   observation is: AI-augmented authoring is fast and full of small
   defects; the human-VM-test loop is *not optional*.
 

@@ -654,7 +654,7 @@ harness works):
    discovered.  Plateau within 5 minutes is OK; zero growth
    indicates a stuck harness.
 
-**Bug-finding criteria** (the talk's actual deliverable):
+**Bug-finding criteria** (the harness's primary deliverable):
 
 1. KASAN report on any MPTCP code path.
 2. WARN_ON / lockdep splat in `net/mptcp/`.
@@ -664,10 +664,11 @@ harness works):
 5. Memory leak (kmemleak hit) in mptcp/subflow lifetime.
 
 Any one of these, with a deterministic reproducer, is a
-publishable finding.  Per the project memory
-`feedback_netdev_framing_provisional.md`, bug findings are
-load-bearing for the talk -- the harness's value as
-infrastructure is incomplete without them.
+publishable finding.  Bug findings are load-bearing for the
+project: the harness's value as infrastructure is incomplete
+without them, and any external presentation built on this work
+leans on the findings as evidence rather than on reachability
+claims alone.
 
 ## 10. What can go wrong (anti-scope and risks)
 

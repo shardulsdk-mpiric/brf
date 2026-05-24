@@ -25,8 +25,8 @@ strength pointed at a transport-state *write* primitive
 (`bpf_mptcp_sched_btf_struct_access`, `net/mptcp/bpf.c:44`) plus 9
 MPTCP kfuncs — a surface completely unhit by the rest of the
 harness.  The other nine gaps (Phases 1/2/4 — gaps 2-10) are DONE
-and committed; Phase 3 is the last item and the the talk's
-defensible flagship.
+and committed; Phase 3 is the last item and the project's
+defensible flagship surface.
 
 **Scope note:** Phase 3 modifies BRF's *program generator*
 (`prog/brf*.go`) — Hung + Sani's core artifact.  The task brief's
@@ -910,11 +910,11 @@ read the accept rate and rejection-reason histogram.
 
 **~3-5 weeks of focused work.**  As of 2026-05-22: Stages B,
 C-minimal and D are done and VM-verified — the Phase 3 pipeline
-runs end-to-end; Stage C-full is not done.  The submission
-(2026-06-01) can present Phase 3 as a working flagship; the
-**2026-07-13 talk** is the landing target.  Remaining overrun risk
-lives in Stage C-full and in the generated-body verifier-accept
-rate.
+runs end-to-end; Stage C-full is not done.  Phase 3 is presentable
+as a working flagship surface for any upstream-facing artefact
+(patch series, write-up, external presentation) built on this
+substrate.  Remaining overrun risk lives in Stage C-full and in
+the generated-body verifier-accept rate.
 
 ## Risks / open items
 

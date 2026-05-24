@@ -1,10 +1,18 @@
 # CLAUDE.md
 
 Working notes for Claude Code in this BRF (BPF Runtime Fuzzer)
-checkout.  BRF is Shardul's fork of Hsin-Wei Hung's published eBPF
-runtime fuzzer (UC Irvine, arXiv:2305.08782, NSF + Google ASPIRE
-funded), which is itself a fork of Google's Syzkaller.  The fork
-exists primarily for Mpiric's network-security upstream work.
+checkout.  This tree is a **reusable substrate** for kernel
+protocol-flow fuzzing: an extension of Hsin-Wei Hung & Ardalan
+Amiri Sani's published eBPF runtime fuzzer (UC Irvine,
+arXiv:2305.08782, NSF + Google ASPIRE funded), which is itself a
+fork of Google's Syzkaller.  Mpiric maintains it to lift BRF's
+state-carrier pseudo-syscall pattern to network transport-security
+protocol flows (MPTCP today; QUIC and tlshd as planned siblings),
+to drive upstream bug findings, and to support any external
+presentation built on that work.  The harness, the AI-augmented
+description authoring methodology, and the bug case studies all
+live here as substrate; they are not artefacts of one specific
+submission venue.
 
 ## Authorship chain (important -- preserve this in all external-facing work)
 
@@ -29,21 +37,23 @@ harness work as extending BRF.
 
 ## What's in flight here
 
-See `.claude/tasks/index.md`.  Currently one active task:
+See `.claude/users/<your-name>/tasks/index.md` (per-user task
+registry; see the per-user convention section below).  As of this
+writing the active task in `shardul/` is:
 
 - **mptcp_protocol_fuzzing** -- extending BRF's harness-generation
   approach to kernel transport-security protocol flows (MPTCP,
   QUIC, tlshd) with AI-augmented syscall description authoring.
-  This is the substrate work for a netdev submission and
-  follow-on conferences (LPC, FOSDEM, etc.).
+  Substrate work that drives upstream bug findings and is
+  available to any external presentation venue built on it.
 
 The task brief at `.claude/users/shardul/tasks/mptcp_protocol_fuzzing/CLAUDE.md`
 is the primary read.  The companion document
 `.claude/users/shardul/tasks/mptcp_protocol_fuzzing/context_reference.md`
 contains the full strategic context (why we pivoted to this from a
-MIB-counters framing, what the conference goals are, how this maps
-to Mpiric's overall trajectory) and is required reading before
-making strategic decisions about the work.
+MIB-counters framing, how the methodology relates to Mpiric's
+broader trajectory) and is required reading before making
+strategic decisions about the work.
 
 ## Cross-repo context
 
@@ -53,12 +63,12 @@ Mpiric's main Linux kernel work happens in a separate clone at:
 /mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux
 ```
 
-The netdev submission task lives there too (the proposal-side
-artifacts), with cross-references back here:
+A companion proposal / outreach task lives there with cross-
+references back here:
 
 - Proposal task brief: `.claude/tasks/mptcp_protocol_fuzzing_proposal/CLAUDE.md`
   (in the Linux clone)
-- Submission artifacts (draft, research questions, roadmap):
+- Upstream-presentation artefacts (draft, research questions, roadmap):
   `shared/mpiric/027_mptcp_protocol_fuzzing_proposal/` (in the same dev tree)
 
 Read those when proposal-side decisions need updating.  Conversely,
@@ -74,7 +84,9 @@ BRF; the canonical write-up lives in the microkernel repo).
 
 Session contract:
 1. This file (`CLAUDE.md`) auto-loads.
-2. Claude reads `.claude/tasks/index.md` (small, always read).
+2. Claude reads the active user's `.claude/users/<name>/tasks/index.md`
+   (small, always read).  The user's identity is inferred from the
+   git user (`git config user.name`) or asked at session start.
 3. When user requests match a task's keywords, Claude asks before
    loading the brief.
 4. Principle files under `.claude/principles/` (none yet) and design
@@ -108,17 +120,19 @@ Session contract:
   extensions.  We do not refer to BRF as ours, claim authorship,
   rename the project in any external materials, or strip upstream
   attribution from forks we publish.
-- **Speaker-defensibility constraint.** Anything that lands in a
-  conference talk has to be defendable by Shardul under Q&A from
-  kernel veterans.  The learning model from the Linux clone applies
-  here too: Claude excavates, Shardul diagnoses and owns the
-  presentation.  If a piece of work can't be defended cold, it
-  doesn't go on a slide.
+- **Speaker-defensibility constraint.** Anything that lands in
+  external-facing material (slides, paper, blog, lore message)
+  has to be defendable by the presenter under Q&A from kernel
+  veterans.  The learning model from the Linux clone applies
+  here too: Claude excavates, the human owner diagnoses and
+  owns the presentation.  If a piece of work can't be defended
+  cold, it doesn't go on a slide.
 - **AI use is in scope to discuss openly, not to hide.**  The
   methodology being developed here -- AI-augmented syscall
-  description authoring for protocol flows -- is the substance of
-  the talk, not a guilty secret.  Be honest about what works, what
-  fails, where the human verification step lives.
+  description authoring for protocol flows -- is the substance
+  of the project's documented methodology, not a guilty secret.
+  Be honest about what works, what fails, where the human
+  verification step lives.
 
 ## What's tracked in git here
 
@@ -129,12 +143,25 @@ Per the existing `.claude/README.md` recommendation:
 | `CLAUDE.md` (this file) | Yes |
 | `.claude/README.md`, `.claude/SESSION_SETUP_PATTERN.md` | Yes |
 | `.claude/principles/*.md` (when added) | Yes |
-| `.claude/tasks/` | No (per-developer working memory) |
+| `.claude/designs/*.md` | Yes (shared substrate) |
+| `.claude/users/README.md` | Yes (explains the per-user convention) |
+| `.claude/users/.contributors` | Yes (one line per active collaborator) |
+| `.claude/users/<name>/tasks/`, `.claude/users/<name>/notes/` | No (per-user working memory) |
+| `.claude/tasks/` (legacy single-user dir) | No (kept gitignored for back-compat) |
 | `.claude/settings.local.json` | No (per-machine) |
 
-When `tasks/` first appears in `git status` (which it just did),
-add `/.claude/tasks/` and `/.claude/settings.local.json` to
-`.gitignore`.
+### Per-user convention
+
+To let multiple collaborators use this tree without stepping on
+each other's working memory, per-user state lives under
+`.claude/users/<your-name>/` (`tasks/`, `notes/`, ...).  These
+subtrees are gitignored.  Shared substrate -- `.claude/designs/`,
+`.claude/principles/`, `.claude/README.md`, this `CLAUDE.md`, the
+`findings/` tree, and the BRF/syzkaller code -- is commonly owned
+and tracked normally.  See `.claude/users/README.md` for the
+onboarding recipe; add a line for yourself to
+`.claude/users/.contributors` so others know you're working in
+this tree.
 
 ## Maintaining this file
 

@@ -23,10 +23,12 @@ codebase is Go (Syzkaller's prog/sys descriptors + a BRF overlay) plus
 the C executor and the syscall description files under `sys/linux/`.
 
 The repo's mainline is `dev`; the current working branch is
-`protocol_flow_fuzzing_harness` (the netdev protocol-flow
-harness work; off `bootstrap_experimental_v0_01`). `origin` points
-at the personal fork `git@github.com:shardulsb08/brf.git`, so this
-is a working clone, not a public mirror.
+`protocol_flow_fuzzing_harness` (the kernel protocol-flow harness
+work; off `bootstrap_experimental_v0_01`).  A sibling collaboration
+branch `mpiric-collab` carries cross-collaborator scaffold changes.
+`origin` points at the personal fork
+`git@github.com:shardulsb08/brf.git`, so this is a working clone,
+not a public mirror.
 
 This shape -- a long-running fork with several in-flight changes (new
 prog types, new map types, fuzzer tuning, deadlock/repro analysis,
@@ -41,21 +43,32 @@ this pattern" section there.
   README.md                       this file
   SESSION_SETUP_PATTERN.md        canonical methodology (copy of microkernel's)
   settings.local.json             Claude Code local settings (gitignored)
-  principles/                     short design-principle files (read on trigger)
+  principles/                     short design-principle files (read on trigger; shared)
     <aspect>.md                   judgment-shaping: how to think about X
                                   e.g., kernel_patch_authoring.md
-  designs/                        technical architecture / recipe docs (read on trigger)
+  designs/                        technical architecture / recipe docs (shared, tracked)
     <subject>.md                  fact-shaping: how a thing actually works
                                   e.g., brf_architecture.md (the BRF pseudo-syscall
                                   pattern and its lift to protocol fuzzing)
-  tasks/                          per-task working dirs (gitignored)
-    index.md                      registry: name, status, keywords, brief path
-    <task_slug>/
-      CLAUDE.md                   task brief: scope, memory load list, principles
-      [optional] commits.md, patch_plan.md, repro_notes.md, ...
+  users/                          per-user working memory (see users/README.md)
+    README.md                     explains the per-user convention (tracked)
+    .contributors                 one line per active collaborator (tracked)
+    <name>/                       a single collaborator's working memory
+      tasks/                      (gitignored) per-task working dirs
+        index.md                  registry: name, status, keywords, brief path
+        <task_slug>/
+          CLAUDE.md               task brief: scope, memory load list, principles
+          [optional] commits.md, patch_plan.md, repro_notes.md, ...
+      notes/                      (gitignored) free-form per-session notes
   archive/                        retired memories with index
     README.md                     index: what was moved and why
 ```
+
+The `users/<name>/tasks/` layout replaces the older single-user
+`tasks/` directory at the `.claude/` root.  Existing per-developer
+`tasks/` content from before the change can either stay where it
+is (it remains gitignored) or be moved under
+`.claude/users/<your-name>/tasks/`.
 
 **`principles/` vs `designs/` distinction:** `principles/` files are
 judgment-shaping ("when working on X, think this way"); `designs/`
@@ -72,15 +85,17 @@ guidance the pattern itself argues for.
 
 ## How a session is meant to start (the contract, once the scaffold is filled in)
 
-1. Repo-root `CLAUDE.md` auto-loads. It tells Claude to read
-   `.claude/tasks/index.md` and lists the auto-load reference triggers.
-2. Claude reads `tasks/index.md` -- a small file -- to learn active
-   tasks and their keyword map.
+1. Repo-root `CLAUDE.md` auto-loads.  It tells Claude to read the
+   active user's `.claude/users/<name>/tasks/index.md` and lists
+   the auto-load reference triggers.
+2. Claude reads that per-user `tasks/index.md` -- a small file --
+   to learn active tasks and their keyword map.
 3. When the user's request matches a task's keywords, Claude **asks
    before loading** the task brief.
 4. After loading the brief, Claude follows the brief's memory load
-   list and the CLAUDE.md trigger table to read principle files
-   automatically, announcing each load so the user can redirect.
+   list and the CLAUDE.md trigger table to read principle / design
+   files automatically, announcing each load so the user can
+   redirect.
 
 Task briefs are gated by user confirmation. Principle files load
 automatically when work matches a row in the CLAUDE.md trigger table.
@@ -94,22 +109,28 @@ auto-discover this layout. Bootstrapping that file is step 1 of the
 ## What's tracked in git vs not (recommended for BRF)
 
 BRF's `origin` is a personal fork, so tracking some of this scaffold
-is reasonable. The recommended split mirrors microkernel:
+is reasonable.  The recommended split mirrors microkernel and now
+adds the per-user convention:
 
-| Path                              | Tracked? | Why                                                      |
-|-----------------------------------|----------|----------------------------------------------------------|
-| `.claude/README.md`               | Yes      | Explains the convention                                  |
-| `.claude/SESSION_SETUP_PATTERN.md`| Yes      | Methodology pointer (canonical source lives in microkernel)|
-| `.claude/principles/*.md`         | Yes      | Project-wide design philosophy                           |
-| `.claude/tasks/`                  | No       | Per-developer working memory                             |
-| `.claude/settings.local.json`     | No       | Per-machine Claude Code settings                         |
-| `CLAUDE.md` (repo root)           | Yes      | Repo entry point for Claude                              |
+| Path                                          | Tracked? | Why                                                                 |
+|-----------------------------------------------|----------|---------------------------------------------------------------------|
+| `CLAUDE.md` (repo root)                       | Yes      | Repo entry point for Claude                                         |
+| `.claude/README.md`                           | Yes      | Explains the convention                                             |
+| `.claude/SESSION_SETUP_PATTERN.md`            | Yes      | Methodology pointer (canonical source lives in microkernel)         |
+| `.claude/principles/*.md`                     | Yes      | Project-wide design philosophy                                      |
+| `.claude/designs/*.md`                        | Yes      | Shared technical / architecture docs                                |
+| `.claude/users/README.md`                     | Yes      | Explains the per-user convention                                    |
+| `.claude/users/.contributors`                 | Yes      | One line per active collaborator                                    |
+| `.claude/users/<name>/tasks/`                 | No       | Per-user task working memory                                        |
+| `.claude/users/<name>/notes/`                 | No       | Per-user free-form notes                                            |
+| `.claude/tasks/` (legacy)                     | No       | Per-developer working memory from before the per-user split         |
+| `.claude/settings.local.json`                 | No       | Per-machine Claude Code settings                                    |
 
-The existing `.gitignore` does not yet exclude `.claude/tasks/` or
-`.claude/settings.local.json`. When `tasks/` is created, append those
-two patterns to `.gitignore` -- otherwise `git status` will start
-listing every per-task working note as untracked. (Don't do this
-preemptively; do it the first time `tasks/` shows up.)
+The `.gitignore` excludes the local-only paths; the per-user
+convention's gitignore lines (`/.claude/users/*/tasks/`,
+`/.claude/users/*/notes/`) sit next to the legacy
+`/.claude/tasks/` entry.  A tracked profile note inside a user's
+dir can be force-added (`git add -f .claude/users/<name>/profile.md`).
 
 ## BRF-specific candidates for `principles/` (when they earn their slot)
 
@@ -136,14 +157,15 @@ visible in `git log` and the current diff:
 
 ## Adding a new task (when the time comes)
 
-1. Create `.claude/tasks/<task_slug>/CLAUDE.md` -- the brief.
-   Sections: goal, scope/anti-scope, memory load list (split:
-   critical / helpful / skip), key files in repo, working principles,
-   open questions. Use any existing brief from microkernel or the
-   Linux clone as a template.
-2. Add an entry to `.claude/tasks/index.md` with status, keywords,
-   brief path, branch, last touched, one-line goal. Mark
-   `status: active` if it's the current focus.
+1. Create `.claude/users/<your-name>/tasks/<task_slug>/CLAUDE.md`
+   -- the brief.  Sections: goal, scope/anti-scope, memory load
+   list (split: critical / helpful / skip), key files in repo,
+   working principles, open questions.  Use any existing brief
+   from microkernel or the Linux clone as a template.
+2. Add an entry to `.claude/users/<your-name>/tasks/index.md`
+   with status, keywords, brief path, branch, last touched,
+   one-line goal.  Mark `status: active` if it's the current
+   focus.
 3. Optionally add skeleton sibling files (e.g. `commits.md`,
    `patch_plan.md`, `repro_notes.md`) for working notes.
 4. When done: set `status: done` and consider moving the brief
