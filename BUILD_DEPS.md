@@ -6,6 +6,24 @@ ad-hoc; **promote to a proper setup script when the list stabilises**
 (target: end of v02, once the NFQUEUE mutation infrastructure is
 in and we know the full surface).
 
+## Quickest path: run the VM readiness checker
+
+To verify a freshly booted dev_env VM has everything below in place
+(kernel configs, packages, kcov patches, BRF binaries, BPF support),
+run the automated check inside the VM as root:
+
+```bash
+/mnt/src/fuzzing/brf/kernel_patches/mptcp_kcov/check_vm_readiness.sh
+```
+
+It executes a graduated smoke-test ladder and reports PASS/FAIL/SKIP
+per layer (kernel config, MPTCP plumbing, MP_JOIN gates, NFQUEUE
+mutation path, BPF struct_ops scheduler, fuzz-driver end-to-end).
+Each FAIL points at the missing dep with the exact apt/config fix.
+See `kernel_patches/mptcp_kcov/README.md` for usage details.
+
+The sections below are the canonical dep list the script verifies.
+
 ## Host (Debian trixie / dev_env VM)
 
 ```bash

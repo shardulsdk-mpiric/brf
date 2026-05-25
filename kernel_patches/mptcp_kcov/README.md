@@ -171,7 +171,53 @@ use `git am --3way` for 3-way merge.
 - **uapi exposure via getsockopt.**  Userspace sets the handle
   so it already knows it; getter not needed for v01.
 
-## Verification (when first booted)
+## Verification: automated readiness check
+
+`check_vm_readiness.sh` runs the full graduated smoke-test ladder
+(env probes -> Tests A-F here -> Phase 3 BPF struct_ops ->
+fuzz-driver end-to-end) and reports PASS/FAIL/SKIP per layer with
+the exact fix on each failure.  Run as root inside the VM:
+
+```bash
+/mnt/src/fuzzing/brf/kernel_patches/mptcp_kcov/check_vm_readiness.sh
+```
+
+One-shot VM setup the readiness check will tell you you need
+(safe to run unconditionally on a fresh trixie image):
+
+```bash
+apt-get install -y libbpf-dev libelf-dev libdw-dev libzstd-dev zlib1g-dev \
+                   libnetfilter-queue-dev libnfnetlink-dev \
+                   clang bpftool iptables locales
+locale-gen en_US.UTF-8         # silences locale warnings; cosmetic
+mkdir -p /mnt/brf_work_dir
+bpftool btf dump file /sys/kernel/btf/vmlinux format c > /mnt/brf_work_dir/vmlinux.h
+(cd /mnt/src/fuzzing/brf && make -j"$(nproc)")    # builds syz-execprog et al.
+```
+
+Kernel configs the check verifies (must be `y` in the BRF kernel
+build's `.config`): `CONFIG_KCOV`, `CONFIG_KASAN`, `CONFIG_MPTCP`,
+`CONFIG_NETFILTER_NETLINK_QUEUE`, `CONFIG_NETFILTER_XT_TARGET_NFQUEUE`,
+`CONFIG_BPF_SYSCALL`, `CONFIG_DEBUG_INFO_BTF`.  Full canonical list:
+`BUILD_DEPS.md` -> "Kernel config requirements".
+
+Use `--list` to see the resolved paths without running anything:
+
+```bash
+check_vm_readiness.sh --list
+```
+
+Use `--help` for the full env-var reference (override
+`BRF=`/`KBUILD=`/`SHARED=`/etc.).  Outputs land in `/tmp/brf_vm_readiness/`.
+
+The companion individual tests below are still useful when triaging
+a specific layer in isolation; the readiness check just runs all of
+them in dependency order.
+
+## Verification: manual minimal program
+
+The original hand-rolled verification recipe -- useful if you want
+to drive kcov yourself rather than trust the test binaries:
 
 In the VM after boot, a minimal C program should:
 
