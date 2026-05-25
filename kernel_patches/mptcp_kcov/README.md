@@ -135,12 +135,12 @@ README.md` in this BRF tree for the prereq details.
 ## Apply order (entirely local to this BRF tree)
 
 ```bash
-cd /mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux
+cd $KERNEL_DEV_ENV_ROOT/open/src/kernel/linux
 git checkout mptcp_brf_fuzz_base
 git fetch mptcp && git reset --hard mptcp/export
 
 # Path-agnostic shorthand for the BRF kernel-patches root.
-BRF=/mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/fuzzing/brf
+BRF=$KERNEL_DEV_ENV_ROOT/open/src/fuzzing/brf
 
 # 1. Subsystem-agnostic kcov prereq.
 git am < $BRF/kernel_patches/bpf_kcov/0001-kcov-bpf-Add-support-for-preallocated-coverage-area.patch

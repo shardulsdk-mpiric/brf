@@ -92,12 +92,12 @@ script promotion later folds these in instead of re-discovering.
 
 ### Wrapper script
 
-`/mnt/host/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/scripts/run_brf_prog.sh`
+`/mnt/host/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/scripts/run_brf_prog.sh`
 folds the above into a single invocation:
 
 ```bash
-/mnt/host/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/scripts/run_brf_prog.sh \
-    /mnt/host/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/progs/pair_init.prog
+/mnt/host/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/scripts/run_brf_prog.sh \
+    /mnt/host/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/progs/pair_init.prog
 ```
 
 Env-var overrides: `BRF` (path to BRF tree, default `/mnt/src/fuzzing/brf`),

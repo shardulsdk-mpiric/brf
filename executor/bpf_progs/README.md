@@ -53,7 +53,7 @@ config.
 ### 1. Host -- regenerate vmlinux.h from the fuzzing kernel BTF
 
 ```sh
-ROOT=/mnt/work_4gb/Dev/mpiric_kernel_dev_env
+ROOT=$KERNEL_DEV_ENV_ROOT
 KBUILD=$ROOT/open/build/linux/2026_05_19_005753_brf_mptcp_v01_first_kmemleak_debug
 bpftool btf dump file "$KBUILD/vmlinux" format c > /tmp/vmlinux.h
 ```
@@ -85,11 +85,11 @@ Copy `mptcp_sched.bpf.o` and `test_mptcp_bpf_sched.c` into a dir
 the VM mounts -- the convention used so far:
 
 ```
-shared/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/
+shared/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/
 ```
 
 which the VM sees as
-`/mnt/host/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/`.
+`/mnt/host/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/`.
 
 ### 4. VM -- build and run the smoke test
 

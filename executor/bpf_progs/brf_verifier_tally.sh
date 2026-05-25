@@ -40,13 +40,20 @@
 
 set -u
 
+# Resolve workspace root from this script's location.  Layout:
+#   $KERNEL_DEV_ENV_ROOT/open/src/fuzzing/brf/executor/bpf_progs/brf_verifier_tally.sh
+# so workspace root is 6 levels up.  KERNEL_DEV_ENV_ROOT env var
+# overrides (matches the convention in $KERNEL_DEV_ENV_ROOT/infra/scripts/config.sh).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+KERNEL_DEV_ENV_ROOT="${KERNEL_DEV_ENV_ROOT:-$(cd "$SCRIPT_DIR/../../../../../.." && pwd)}"
+
 # Default search paths.  Entries may contain shell globs; a glob that
 # matches nothing expands to nothing and is skipped.  The host-side
 # 9p-share path is resolved relative to this script's checkout so the
 # common syz-manager layout (.../syz_manager/workdir_v01/...) is found
 # without an explicit argument.
 DEFAULT_PATHS=(
-	"/mnt/work_4gb/Dev/mpiric_kernel_dev_env/shared/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/syz_manager/workdir_v01/brf_verifier_stats/stats.*.log"
+	"$KERNEL_DEV_ENV_ROOT/shared/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/syz_manager/workdir_v01/brf_verifier_stats/stats.*.log"
 	"/mnt/brf_verif_stats/stats.*.log"
 	"/tmp/brf_verifier_stats.log"
 )

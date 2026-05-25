@@ -69,7 +69,7 @@ Created today (2026-05-15): `mptcp_brf_fuzz_base` from tag
 ## Update procedure (do this periodically)
 
 ```
-cd /mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux
+cd $KERNEL_DEV_ENV_ROOT/open/src/kernel/linux
 
 # 1. Fetch latest upstream
 git fetch mptcp                     # for MPTCP work
@@ -91,7 +91,7 @@ git describe --tags                 # closest upstream tag, e.g.
 
 # 5. Rebuild the kernel for the dev_env VM
 #    (this step is build-system-specific; the relevant scripts are
-#    in /mnt/work_4gb/Dev/mpiric_kernel_dev_env/)
+#    in $KERNEL_DEV_ENV_ROOT/)
 ```
 
 **Cadence:**
@@ -139,12 +139,12 @@ command sets up a buildable kernel:
 For now, do it manually:
 
 ```sh
-cd /mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux
+cd $KERNEL_DEV_ENV_ROOT/open/src/kernel/linux
 git checkout mptcp_brf_fuzz_base
 git reset --hard mptcp/export
 
 # All patches now live inside the BRF repo (self-contained dev flow).
-BRF=/mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/fuzzing/brf
+BRF=$KERNEL_DEV_ENV_ROOT/open/src/fuzzing/brf
 
 # 1. Subsystem-agnostic kcov prereq.
 git am < $BRF/kernel_patches/bpf_kcov/0001-kcov-bpf-Add-support-for-preallocated-coverage-area.patch
@@ -170,7 +170,7 @@ When a harness produces a finding worth reporting upstream, capture:
 
 1. **Upstream snapshot:**
    ```
-   git -C /mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux \
+   git -C $KERNEL_DEV_ENV_ROOT/open/src/kernel/linux \
        describe --tags    # e.g., export/20260515T083717
    git -C ...              log --oneline -1  # exact commit hash
    ```

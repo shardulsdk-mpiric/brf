@@ -55,12 +55,43 @@ MIB-counters framing, how the methodology relates to Mpiric's
 broader trajectory) and is required reading before making
 strategic decisions about the work.
 
+## Workspace root convention
+
+All absolute paths in this tree's docs and scripts are expressed
+relative to `$KERNEL_DEV_ENV_ROOT` -- the path to the
+`mpiric_kernel_dev_env/` workspace on whatever machine you're on.
+This BRF tree itself lives at
+`$KERNEL_DEV_ENV_ROOT/open/src/fuzzing/brf`; the kernel clone is at
+`$KERNEL_DEV_ENV_ROOT/open/src/kernel/linux`; the shared scratch tree
+at `$KERNEL_DEV_ENV_ROOT/shared/`; and so on.
+
+Resolving it:
+
+- **In scripts**: source `$KERNEL_DEV_ENV_ROOT/infra/scripts/config.sh`,
+  which auto-detects the root from the script's own location (it walks
+  up looking for `infra/` + `open/` markers), with `KERNEL_DEV_ENV_ROOT`
+  env-var override.  BRF-tree scripts can also derive it directly:
+  `KERNEL_DEV_ENV_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../../.. && pwd)"`.
+- **In docs**: copy-paste blocks use `$KERNEL_DEV_ENV_ROOT/...`.  Either
+  `export KERNEL_DEV_ENV_ROOT=...` once in your shell, or substitute your
+  workspace root by hand.
+- **Inside the dev_env VM**: paths use the 9p mount tags directly --
+  `/mnt/src` (= `$KERNEL_DEV_ENV_ROOT/open/src`), `/mnt/build`
+  (= `$KERNEL_DEV_ENV_ROOT/open/build`), `/mnt/host`
+  (= `$KERNEL_DEV_ENV_ROOT/shared`).  These are stable regardless of
+  where the host workspace lives.
+
+If you see a literal `/mnt/work_4gb/Dev/mpiric_kernel_dev_env/...` or
+`/mnt/dev/users/shardulb/workspace/mpiric_kernel_dev_env/...` in any
+file in this tree, treat it as a stale leak from a particular
+contributor's machine -- file a fix.
+
 ## Cross-repo context
 
 Mpiric's main Linux kernel work happens in a separate clone at:
 
 ```
-/mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux
+$KERNEL_DEV_ENV_ROOT/open/src/kernel/linux
 ```
 
 A companion proposal / outreach task lives there with cross-
@@ -69,7 +100,7 @@ references back here:
 - Proposal task brief: `.claude/tasks/mptcp_protocol_fuzzing_proposal/CLAUDE.md`
   (in the Linux clone)
 - Upstream-presentation artefacts (draft, research questions, roadmap):
-  `shared/mpiric/027_mptcp_protocol_fuzzing_proposal/` (in the same dev tree)
+  `shared/mpiric/027_netdev_0x1a_proposal/` (in the same dev tree)
 
 Read those when proposal-side decisions need updating.  Conversely,
 the proposal-side Claude should read this BRF tree's

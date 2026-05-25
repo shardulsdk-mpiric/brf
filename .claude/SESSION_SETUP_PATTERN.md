@@ -120,7 +120,7 @@ kernel.org), put the whole `CLAUDE.md` and `.claude/` tree into
 `.git/info/exclude` instead -- that keeps the scaffold per-clone and
 prevents it from ever appearing in a public branch headed to
 fsdevel/netdev/mptcp/etc. The Linux-clone README at
-`/mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux/.claude/README.md`
+`$KERNEL_DEV_ENV_ROOT/open/src/kernel/linux/.claude/README.md`
 is the worked example.
 
 ## Adding a new design principle
@@ -185,7 +185,7 @@ Skip for small/exploratory repos -- the overhead exceeds the benefit.
 2. Insert the four pre-codebase sections above (Task system, Design
    principles, Auto-loaded references, Always-load at session start).
    Use an existing repo's `CLAUDE.md` as a template:
-   - Linux clone: `/mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux/CLAUDE.md`
+   - Linux clone: `$KERNEL_DEV_ENV_ROOT/open/src/kernel/linux/CLAUDE.md`
 3. Identify 2-4 design principles unique to the new repo; write
    `.claude/principles/<aspect>.md` for each. **Don't write
    speculative principles** -- only the ones a real session has

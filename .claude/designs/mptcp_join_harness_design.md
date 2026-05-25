@@ -514,7 +514,7 @@ reproducibility-footer convention for bug reports).
 Specifically for MPTCP work:
 
 - Local branch: `mptcp_brf_fuzz_base` in the kernel tree at
-  `/mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux/`.
+  `$KERNEL_DEV_ENV_ROOT/open/src/kernel/linux/`.
 - Upstream source: `mptcp/export` (riches surface; net-next based).
   Bug findings get routed at report time (Fixes -> mptcp/export-net;
   feature -> mptcp/export).
@@ -970,7 +970,7 @@ time, surface the blocker rather than grinding.
   bug-finding-is-load-bearing constraint.
 - Global memory `feedback_frame_by_impact.md` -- framing posture.
 - `net/mptcp/` in the kernel tree under
-  `/mnt/work_4gb/Dev/mpiric_kernel_dev_env/open/src/kernel/linux/`
+  `$KERNEL_DEV_ENV_ROOT/open/src/kernel/linux/`
   -- the code under test.  Key files: protocol.c, subflow.c,
   options.c, pm.c, crypto.c, token.c, mib.c.
 - RFC 8684 "TCP Extensions for Multipath Operation with Multiple
