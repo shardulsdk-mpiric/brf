@@ -1,0 +1,66 @@
+From d071f117f76c3e3b1bd7a2760552b65697494454 Mon Sep 17 00:00:00 2001
+From: Shardul Bankar <shardul.b@mpiricsoftware.com>
+Date: Tue, 26 May 2026 04:45:08 +0530
+Subject: [PATCH] mptcp: extend BRF kcov wrap to HMAC failure reset paths
+
+Patch 0002 wrapped the HMAC validation arithmetic inside
+subflow_hmac_valid (server-side third-ACK) and subflow_thmac_valid
+(client-side SYNACK).  Coverage was captured for the bitwise
+compare itself, but the caller-side failure handling -- the MIB
+increment and reset-reason assignment that emit MPTCP_RST_EMPTCP
+-- ran outside that wrap.
+
+The merged HMAC reset fixes a6da02d4c00f (HMAC EPROHIBIT -> EMPTCP
+at server ACK validation) and c4a99a921949 (JOINACKMAC ->
+JOINSYNACKMAC at client SynAck) touched exactly these
+post-validation code paths.  Coverage feedback on them lets the
+BRF harness's MP_JOIN HMAC mutation surface (NFQUEUE-driven HMAC
+bit-flip + nonce mutation) confirm not just that the validation
+gates were exercised but that the failure reset emission was
+reached -- a separate signal that matters for the RST_EMPTCP
+per-event MIB counter coverage in the in-flight v3 series
+(mptcp_mib_counters task).
+
+Add BRF_MPTCP_KCOV_START / _STOP pairs around the two failure
+branches.  Each wrap is two lines of additions in a branch that
+only fires when a HMAC mutation matches the kernel's failure
+path; zero cost on the success path.  Sequential with the
+patch-0002 wraps inside the *_hmac_valid functions (no nesting
+-- the inner wrap stops before the function returns false, the
+outer wrap starts after).
+
+Assisted-by: Claude:claude-opus-4-7
+Signed-off-by: Shardul Bankar <shardul.b@mpiricsoftware.com>
+---
+ net/mptcp/subflow.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/net/mptcp/subflow.c b/net/mptcp/subflow.c
+index ba82c4713c6f6..fed6c16659e5e 100644
+--- a/net/mptcp/subflow.c
++++ b/net/mptcp/subflow.c
+@@ -589,8 +589,10 @@ static void subflow_finish_connect(struct sock *sk, const struct sk_buff *skb)
+ 			 subflow->backup);
+ 
+ 		if (!subflow_thmac_valid(subflow)) {
++			BRF_MPTCP_KCOV_START(msk);
+ 			MPTCP_INC_STATS(sock_net(sk), MPTCP_MIB_JOINSYNACKMAC);
+ 			subflow->reset_reason = MPTCP_RST_EMPTCP;
++			BRF_MPTCP_KCOV_STOP(msk);
+ 			goto do_reset;
+ 		}
+ 
+@@ -919,8 +921,10 @@ static struct sock *subflow_syn_recv_sock(const struct sock *sk,
+ 			}
+ 
+ 			if (!subflow_hmac_valid(subflow_req, &mp_opt)) {
++				BRF_MPTCP_KCOV_START(owner);
+ 				SUBFLOW_REQ_INC_STATS(req, MPTCP_MIB_JOINACKMAC);
+ 				subflow_add_reset_reason(skb, MPTCP_RST_EMPTCP);
++				BRF_MPTCP_KCOV_STOP(owner);
+ 				goto dispose_child;
+ 			}
+ 
+-- 
+2.34.1
+
