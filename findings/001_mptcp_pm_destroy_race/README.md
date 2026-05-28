@@ -19,7 +19,7 @@ Concurrent userspace PM `ANNOUNCE` genl handler can race with
 **How:** syz-manager run on the
 `2026_05_15_190810_brf_mptcp_v01` kernel build using the
 Mpiric MPTCP protocol-flow harness extension on BRF
-(`shardulsb08/brf`, branch `protocol_flow_fuzzing_harness`).
+(`shardulsdk-mpiric/brf`, branch `protocol_flow_fuzzing_harness`).
 Within minutes of starting, multiple kmemleak crashes
 appeared with backtraces rooted at
 `mptcp_pm_alloc_anno_list+...` from
@@ -57,16 +57,9 @@ syzkaller workload it fires reliably (10 instances of the
 
 ## Reproduction
 
-- **Standalone single-process:**
-  `kernel_patches/mptcp_kcov/test_mp_pm_announce_leak.c`.
-  Stability wrapper `run_stability.sh` (50 iterations clean)
-  confirms the harness side is deterministic.  Does **not**
-  reproduce the leak in isolation — the race requires
-  concurrent destroy load.
-- **Fuzzer:** any syz-manager run on this kernel with the
-  MPTCP userspace PM enabled (`net.mptcp.pm_type=1`) and
-  concurrent `ANNOUNCE` / `close()` patterns in the corpus.
-  Config used: `shared/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/syz_manager/mptcp_v01_first_kmemleak_debug.cfg`.
+The reproducer is held privately pending maintainer
+acknowledgment of the upstream patch.  Bug mechanism is
+documented in §Anatomy above and in the companion case study.
 
 ## Diagnosis and fix
 
@@ -148,4 +141,4 @@ sees the flag and refuses.
 - `README.md` — this writeup.
 - `0001-mptcp-pm-fix-memory-leak-from-alloc-during-teardown-.patch`
   — the upstream patch (same content as
-  `shared/mpiric/027_mptcp_protocol_fuzzing_proposal/work/brf_protocol_fuzz_setup/upstream_submission/`).
+  `shared/mpiric/<task-dir>/work/brf_protocol_fuzz_setup/upstream_submission/`).

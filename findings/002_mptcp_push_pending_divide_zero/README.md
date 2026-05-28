@@ -22,7 +22,7 @@ admin `MPTCP_PM_CMD_FLUSH_ADDRS` netlink command.
 **Date:** 2026-05-23.
 
 **How:** Mpiric MPTCP protocol-flow harness extension on BRF
-(`shardulsb08/brf`, branch `protocol_flow_fuzzing_harness`),
+(`shardulsdk-mpiric/brf`, branch `protocol_flow_fuzzing_harness`),
 syz-manager run on the
 `2026_05_19_005753_brf_mptcp_v01_first_kmemleak_debug` kernel
 build (`mptcp_brf_fuzz_base` tip `c2e28d808c9b`, BRF kcov
@@ -127,7 +127,7 @@ Kernel branch: `mptcp_push_pending_mss_init` (off
 - **Status:** sent to `mptcp@lists.linux.dev` on 2026-05-24,
   subject prefix `[PATCH mptcp-net]`.  Awaiting MPTCP CI +
   review.
-- **Lore link:** _(add once available)_.
+- **Lore link:** <https://lore.kernel.org/all/20260525194828.1137119-1-shardul.b@mpiricsoftware.com/>.
 - **Cc:** Paolo Abeni (author of the precursor `1094c6fe7280`)
   and Geliang Tang (author of the 2021 patch that was
   declined).  Per the in-tree `.b4-config`, no broader Cc on

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 // Copyright 2026 Mpiric.  Apache 2 LICENSE -- see LICENSE.
 //
 // BRF Phase 3, Stage C verification test.  Builds a generated MPTCP

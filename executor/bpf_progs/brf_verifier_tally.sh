@@ -53,7 +53,7 @@ KERNEL_DEV_ENV_ROOT="${KERNEL_DEV_ENV_ROOT:-$(cd "$SCRIPT_DIR/../../../../../.."
 # common syz-manager layout (.../syz_manager/workdir_v01/...) is found
 # without an explicit argument.
 DEFAULT_PATHS=(
-	"$KERNEL_DEV_ENV_ROOT/shared/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/syz_manager/workdir_v01/brf_verifier_stats/stats.*.log"
+	"$KERNEL_DEV_ENV_ROOT/shared/mpiric/*/work/brf_protocol_fuzz_setup/syz_manager/workdir_v01/brf_verifier_stats/stats.*.log"
 	"/mnt/brf_verif_stats/stats.*.log"
 	"/tmp/brf_verifier_stats.log"
 )

@@ -11,7 +11,7 @@ patch).
 
 The gates instrumented are the ones a stateless fuzzer cannot
 clear by chance and where a stateful harness (e.g. the BRF MP_JOIN
-harness in shardulsb08/brf:.claude/designs/mptcp_join_harness_design.md)
+harness in shardulsdk-mpiric/brf:.claude/designs/mptcp_join_harness_design.md)
 wants coverage feedback to know which mutation classes reach which
 kernel paths:
 

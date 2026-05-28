@@ -559,7 +559,7 @@ BRF                      Hsin-Wei Hung + Ardalan Amiri Sani   UC Irvine
                          Repo: github.com/trusslab/brf
    |
    v
-shardulsb08/brf          Mpiric Software extensions (this checkout)
+shardulsdk-mpiric/brf    Mpiric Software extensions (this checkout)
 ```
 
 The Mpiric protocol-flow extensions are *extensions to BRF*, not a new

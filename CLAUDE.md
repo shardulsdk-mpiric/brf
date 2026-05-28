@@ -23,7 +23,7 @@ BRF (Hsin-Wei Hung + Ardalan Amiri Sani, UC Irvine; published
       arXiv:2305.08782, May 2023; ACM venue version at
       papers/3643778.pdf)
    ↓ fork, Aug 2025
-shardulsb08/brf  (this checkout)
+shardulsdk-mpiric/brf  (this checkout)
 ```
 
 License: Apache 2.0.  No CLA.  Attribution requirements: preserve
@@ -48,12 +48,7 @@ writing the active task in `shardul/` is:
   available to any external presentation venue built on it.
 
 The task brief at `.claude/users/shardul/tasks/mptcp_protocol_fuzzing/CLAUDE.md`
-is the primary read.  The companion document
-`.claude/users/shardul/tasks/mptcp_protocol_fuzzing/context_reference.md`
-contains the full strategic context (why we pivoted to this from a
-MIB-counters framing, how the methodology relates to Mpiric's
-broader trajectory) and is required reading before making
-strategic decisions about the work.
+is the primary read.
 
 ## Workspace root convention
 
@@ -94,18 +89,15 @@ Mpiric's main Linux kernel work happens in a separate clone at:
 $KERNEL_DEV_ENV_ROOT/open/src/kernel/linux
 ```
 
-A companion proposal / outreach task lives there with cross-
+A companion proposal task lives there with cross-
 references back here:
 
 - Proposal task brief: `.claude/tasks/mptcp_protocol_fuzzing_proposal/CLAUDE.md`
   (in the Linux clone)
 - Upstream-presentation artefacts (draft, research questions, roadmap):
-  `shared/mpiric/027_netdev_0x1a_proposal/` (in the same dev tree)
+  `shared/mpiric/<task-dir>/` (in the same dev tree)
 
-Read those when proposal-side decisions need updating.  Conversely,
-the proposal-side Claude should read this BRF tree's
-`context_reference.md` when needing technical grounding on the
-BRF substrate.
+Read those when proposal-side decisions need updating.
 
 ## Auto-loaded references and session-setup methodology
 

@@ -33,14 +33,13 @@
 # Env vars (override defaults; defaults are the canonical VM paths):
 #   BRF=<path>            BRF tree (default: /mnt/src/fuzzing/brf)
 #   KBUILD=<path>         kernel build dir with vmlinux (default: latest under /mnt/build/linux/)
-#   SHARED=<path>         shared scratch root (default: /mnt/host/mpiric/027_netdev_0x1a_proposal)
+#   SHARED=<path>         shared scratch root for the current task (default: /mnt/host/mpiric/your-task -- override with your real path)
 #   WORK=<dir>            scratch build dir on LOCAL rootfs (default: /tmp/brf_vm_readiness)
 #   STOP_ON_FAIL=yes|no   stop at first FAIL (default: yes)
 #   RUN_PHASE3=auto|yes|no  run §3 (default: auto -- on if $BPF_OBJ exists)
 #   BPF_OBJ=<file>        pre-built mptcp_sched.bpf.o (default: $SHARED/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/mptcp_sched.bpf.o)
 #   WRAPPER=<file>        run_brf_prog.sh path (default: $SHARED/work/brf_protocol_fuzz_setup/scripts/run_brf_prog.sh)
 #   BRF_PROG=<file>       sample prog for §4 (default: $SHARED/work/brf_protocol_fuzz_setup/progs/pair_init.prog)
-#   STABILITY_ITERS=N     iterations for Test F (default: 50)
 #
 # Exit codes:
 #   0  ready (all critical tests PASS; warnings ok)
@@ -54,11 +53,10 @@ set -u
 # ----- canonical VM paths ---------------------------------------------
 
 BRF="${BRF:-/mnt/src/fuzzing/brf}"
-SHARED="${SHARED:-/mnt/host/mpiric/027_netdev_0x1a_proposal}"
+SHARED="${SHARED:-/mnt/host/mpiric/your-task}"
 WORK="${WORK:-/tmp/brf_vm_readiness}"
 STOP_ON_FAIL="${STOP_ON_FAIL:-yes}"
 RUN_PHASE3="${RUN_PHASE3:-auto}"
-STABILITY_ITERS="${STABILITY_ITERS:-50}"
 
 # KBUILD: explicit > newest under /mnt/build/linux/ that has a vmlinux.
 if [ -z "${KBUILD:-}" ]; then
@@ -369,54 +367,6 @@ else
               "-lnetfilter_queue -lnfnetlink -lpthread" 0
     maybe_stop
 fi
-
-# Test F -- announce/genl stability.  We inline a minimal version of
-# run_stability.sh here so we never have to copy the script next to its
-# locally-built binary (which is the layout run_stability.sh assumes).
-LEAK_SRC="$TESTS_DIR/test_mp_pm_announce_leak.c"
-LEAK_BIN="$WORK/test_mp_pm_announce_leak"
-if [ -e "$LEAK_SRC" ] && \
-   gcc -O2 -Wall -o "$LEAK_BIN" "$LEAK_SRC" 2>"$WORK/test_mp_pm_announce_leak.build.log"; then
-    pass4=0; bad_iter=""; bad_rc=""
-    declare -A leak_counts=([0]=0 [1]=0 [2]=0 [3]=0 [4]=0 [other]=0)
-    : > "$WORK/stability.out"
-    for i in $(seq 1 "$STABILITY_ITERS"); do
-        out=$(BRF_STABILITY=1 "$LEAK_BIN" 2>&1)
-        rc=$?
-        case "$rc" in
-            0|1|2|3|4) leak_counts[$rc]=$((leak_counts[$rc]+1)) ;;
-            *)         leak_counts[other]=$((leak_counts[other]+1)) ;;
-        esac
-        if [ "$rc" -eq 4 ]; then
-            pass4=$((pass4+1))
-        elif [ -z "$bad_iter" ]; then
-            bad_iter="$i"; bad_rc="$rc"
-            {
-                echo "--- first non-4 iteration: $i (exit $rc) ---"
-                echo "$out" | tail -20
-                echo "--- end of bad iteration output ---"
-            } >> "$WORK/stability.out"
-        fi
-        sleep 0.05
-    done
-    {
-        echo "Stability tally over $STABILITY_ITERS iterations:"
-        for k in 0 1 2 3 4 other; do
-            echo "  exit $k: ${leak_counts[$k]}"
-        done
-    } >> "$WORK/stability.out"
-    if [ "$pass4" -eq "$STABILITY_ITERS" ]; then
-        mark PASS "Test F: announce/genl stability ($STABILITY_ITERS iters)" "all exit 4"
-    else
-        mark FAIL "Test F: announce/genl stability" \
-                  "$pass4/$STABILITY_ITERS clean; first bad: iter $bad_iter exit $bad_rc; see $WORK/stability.out"
-    fi
-else
-    mark SKIP "Test F: announce/genl stability" \
-              "compile failed -- see $WORK/test_mp_pm_announce_leak.build.log"
-fi
-maybe_stop
-echo
 
 # ----- §3 Phase 3 BPF struct_ops scheduler ----------------------------
 

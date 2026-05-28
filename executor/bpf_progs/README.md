@@ -85,11 +85,11 @@ Copy `mptcp_sched.bpf.o` and `test_mptcp_bpf_sched.c` into a dir
 the VM mounts -- the convention used so far:
 
 ```
-shared/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/
+shared/mpiric/<task-dir>/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/
 ```
 
 which the VM sees as
-`/mnt/host/mpiric/027_netdev_0x1a_proposal/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/`.
+`/mnt/host/mpiric/<task-dir>/work/brf_protocol_fuzz_setup/mptcp_bpf_sched_test/`.
 
 ### 4. VM -- build and run the smoke test
 

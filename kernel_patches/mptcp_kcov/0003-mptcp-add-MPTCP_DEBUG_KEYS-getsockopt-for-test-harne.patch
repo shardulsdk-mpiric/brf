@@ -7,7 +7,7 @@ Add a small CONFIG_KCOV-gated getsockopt that returns the msk's
 MP_CAPABLE-captured local_key and remote_key to userspace, in a
 new struct mptcp_debug_keys.
 
-Motivation: the BRF protocol-flow harness in shardulsb08/brf
+Motivation: the BRF protocol-flow harness in shardulsdk-mpiric/brf
 needs both keys after the MP_CAPABLE exchange so it can compute
 the HMAC-SHA256 value the kernel expects for MP_JOIN
 authentication.  Without this, the harness would have to peek
@@ -67,7 +67,7 @@ index 2ebc38d4faafa..67d99cabf241e 100644
 +/* Return the msk's MP_CAPABLE-captured local_key and remote_key to
 + * userspace.  Test/debug only; protected by CONFIG_KCOV so it does
 + * not exist on production builds.  Used by the BRF protocol-flow
-+ * harness in shardulsb08/brf to plumb cryptographic state into the
++ * harness to plumb cryptographic state into the
 + * user-side harness without parsing wire packets via AF_PACKET.
 + */
 +static int mptcp_getsockopt_debug_keys(struct mptcp_sock *msk,

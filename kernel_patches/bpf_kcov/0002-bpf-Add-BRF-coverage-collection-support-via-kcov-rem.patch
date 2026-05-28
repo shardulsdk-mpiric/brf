@@ -1,5 +1,5 @@
 From e3665933067540754fd2712db93ec243abb1310e Mon Sep 17 00:00:00 2001
-From: Shardul Bankar <shardulsb08@gmail.com>
+From: Shardul Bankar <shardul.b@mpiricsoftware.com>
 Date: Wed, 3 Sep 2025 16:27:07 +0530
 Subject: [PATCH 2/3] bpf: Add BRF coverage collection support via kcov remote
  coverage
@@ -22,7 +22,7 @@ Changes:
 This enables BRF to collect coverage from eBPF programs regardless
 of their execution context, improving fuzzing effectiveness.
 
-Signed-off-by: Shardul Bankar <shardulsb08@gmail.com>
+Signed-off-by: Shardul Bankar <shardul.b@mpiricsoftware.com>
 ---
  include/linux/bpf.h            |  5 +++++
  include/linux/filter.h         | 15 +++++++++++++++

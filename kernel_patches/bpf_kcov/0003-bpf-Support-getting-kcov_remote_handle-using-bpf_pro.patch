@@ -1,5 +1,5 @@
 From 1141d706ba700606c05def357440f7a692303d40 Mon Sep 17 00:00:00 2001
-From: Shardul Bankar <shardulsb08@gmail.com>
+From: Shardul Bankar <shardul.b@mpiricsoftware.com>
 Date: Thu, 4 Sep 2025 15:12:39 +0530
 Subject: [PATCH 3/3] bpf: Support getting kcov_remote_handle using
  bpf_prog_get_info_by_fd
@@ -10,7 +10,7 @@ user space to retrieve the kcov handle associated with a BPF program.
 This enables BRF fuzzer to verify that coverage collection is
 properly enabled for BPF programs and monitor coverage status.
 
-Signed-off-by: Shardul Bankar <shardulsb08@gmail.com>
+Signed-off-by: Shardul Bankar <shardul.b@mpiricsoftware.com>
 ---
  include/uapi/linux/bpf.h       |  1 +
  kernel/bpf/syscall.c           |  1 +

@@ -486,7 +486,7 @@ BRF               Hsin-Wei Hung + Ardalan Amiri Sani  (UC Irvine)
                   ACM venue version: papers/3643778.pdf
                   Funded by NSF #1763172, NSF #1846230, Google ASPIRE 2020
     ↓ fork, Aug 2025
-shardulsb08/brf   Mpiric extensions (this checkout)
+shardulsdk-mpiric/brf   Mpiric extensions (this checkout)
                   Branch: protocol_flow_fuzzing_harness
 ```
 
@@ -514,11 +514,9 @@ the published fork.
 - Bug report: `findings/001_mptcp_pm_destroy_race/README.md`
 - Upstream patch:
   `findings/001_mptcp_pm_destroy_race/0001-mptcp-pm-fix-memory-leak-from-alloc-during-teardown-.patch`
-- Standalone reproducer (single-process; does not reproduce the leak
-  in isolation but proves the harness side is deterministic):
-  `kernel_patches/mptcp_kcov/test_mp_pm_announce_leak.c`
-- Stability wrapper for the reproducer:
-  `kernel_patches/mptcp_kcov/run_stability.sh`
+- Reproducer artifacts (standalone + stability wrapper): held
+  privately pending maintainer acknowledgment of the upstream
+  patch.
 - The pseudo-syscall that surfaced the bug:
   - Syzlang declaration:
     `sys/linux/socket_mptcp_crypto.txt` (`syz_mptcp_pm_announce`)

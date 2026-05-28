@@ -603,7 +603,7 @@ BRF               Hsin-Wei Hung + Ardalan Amiri Sani  (UC Irvine)
                   ACM venue version: papers/3643778.pdf
                   Funded by NSF #1763172, NSF #1846230, Google ASPIRE 2020
     ↓ fork, Aug 2025
-shardulsb08/brf   Mpiric extensions (this checkout)
+shardulsdk-mpiric/brf   Mpiric extensions (this checkout)
                   Branch: protocol_flow_fuzzing_harness
 ```
 

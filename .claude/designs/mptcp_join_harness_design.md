@@ -10,8 +10,6 @@ this first as the worked example, then specialise.
   doc instantiates).
 - `.claude/users/shardul/tasks/mptcp_protocol_fuzzing/CLAUDE.md` (task brief,
   scope and constraints).
-- `.claude/users/shardul/tasks/mptcp_protocol_fuzzing/context_reference.md`
-  (strategic context, citation discipline).
 
 **Status (updated 2026-05-22):** this began as a v0 design draft
 (2026-05-15, "no code written yet"); the body has since been

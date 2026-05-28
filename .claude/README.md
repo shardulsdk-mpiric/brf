@@ -24,10 +24,9 @@ the C executor and the syscall description files under `sys/linux/`.
 
 The repo's mainline is `dev`; the current working branch is
 `protocol_flow_fuzzing_harness` (the kernel protocol-flow harness
-work; off `bootstrap_experimental_v0_01`).  A sibling collaboration
-branch `mpiric-collab` carries cross-collaborator scaffold changes.
+work; off `bootstrap_experimental_v0_01`).
 `origin` points at the personal fork
-`git@github.com:shardulsb08/brf.git`, so this is a working clone,
+`git@github.com:shardulsdk-mpiric/brf.git`, so this is a working clone,
 not a public mirror.
 
 This shape -- a long-running fork with several in-flight changes (new
