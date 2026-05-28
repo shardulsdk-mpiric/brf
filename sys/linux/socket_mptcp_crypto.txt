@@ -141,6 +141,16 @@ syz_mptcp_pm_set_limits(rcv_add_addrs int32, subflows int32)
 # to the alloc-during-teardown race in findings/001/).
 syz_mptcp_diag(family flags[mptcp_diag_family], states int32, ext int8)
 
+# syz_mptcp_diag_get_one (A3, audit follow-on): query the
+# mptcp_diag_dump_one (mptcp_diag.c:27) handler that
+# syz_mptcp_diag's NLM_F_DUMP path does not reach.  Single-shot
+# NLM_F_REQUEST with the pair's MPTCP token placed into
+# id.idiag_cookie[0]; the kernel uses it to look up the msk via
+# mptcp_token_get_sock().  Dump_one racing PM teardown / close on
+# the same msk is the same bug class as findings/001/ but on the
+# sock_diag dispatch path rather than the userspace-PM genl path.
+syz_mptcp_diag_get_one(pair mptcp_pair, family flags[mptcp_diag_family], ext int8)
+
 # AF_INET = 2, AF_INET6 = 10
 mptcp_diag_family = 2, 10
 

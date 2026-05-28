@@ -3935,6 +3935,111 @@ static long syz_mptcp_diag(volatile long a0, volatile long a1,
 }
 #endif
 
+#if SYZ_EXECUTOR || __NR_syz_mptcp_diag_get_one
+/*
+ * A3 / audit follow-on: query mptcp_diag_dump_one (mptcp_diag.c:27),
+ * the kernel handler that syz_mptcp_diag's NLM_F_DUMP path does not
+ * reach.  Dispatch:
+ *
+ *   netlink SOCK_DIAG_BY_FAMILY -> inet_diag_handler_cmd
+ *     -> inet_diag_get_exact (no NLM_F_DUMP)
+ *     -> mptcp_diag_dump_one
+ *     -> mptcp_token_get_sock(net, req->id.idiag_cookie[0]).
+ *
+ * The "cookie" is read by mptcp_diag.c:38 as a 32-bit MPTCP token,
+ * not an opaque inet-diag cookie.  We feed the pair's captured
+ * msk->token so the success path through inet_sk_diag_fill +
+ * nlmsg_unicast is exercised; without a live msk the kernel returns
+ * -ENOENT and never reaches the bug-prone code.
+ *
+ * Bug class: dump_one racing PM teardown / mptcp_close on the same
+ * msk -- same alloc-during-teardown shape as findings/001 but on
+ * the sock_diag dispatch path rather than the userspace-PM genl
+ * path.  Concurrent fuzzer programs surface the race naturally.
+ */
+static long syz_mptcp_diag_get_one(volatile long a0, volatile long a1,
+				   volatile long a2)
+{
+	long slot = a0;
+	uint8_t family = (uint8_t)a1;
+	uint8_t ext = (uint8_t)a2;
+	int sd_sock;
+	struct sockaddr_nl sa = { .nl_family = AF_NETLINK };
+	char buf[256];
+	struct nlmsghdr *nlh = (struct nlmsghdr *)buf;
+	struct brf_inet_diag_req_v2 *req;
+	struct brf_mptcp_pair_state *pair;
+
+	if (slot < 0 || slot >= MPTCP_PAIR_POOL_SIZE) {
+		debug("syz_mptcp_diag_get_one: slot %ld out of range\n",
+		      slot);
+		return -1;
+	}
+	pair = &brf_mptcp_pair_pool[slot];
+	if (!pair->in_use) {
+		debug("syz_mptcp_diag_get_one: slot %ld not in use\n",
+		      slot);
+		return -1;
+	}
+
+	sd_sock = socket(AF_NETLINK, SOCK_RAW, NETLINK_SOCK_DIAG);
+	if (sd_sock < 0) {
+		debug("syz_mptcp_diag_get_one: socket: %s\n",
+		      strerror(errno));
+		return -1;
+	}
+	if (bind(sd_sock, (struct sockaddr *)&sa, sizeof(sa)) < 0) {
+		debug("syz_mptcp_diag_get_one: bind: %s\n",
+		      strerror(errno));
+		close(sd_sock);
+		return -1;
+	}
+
+	memset(buf, 0, sizeof(buf));
+	nlh->nlmsg_type  = SOCK_DIAG_BY_FAMILY;
+	/* NLM_F_REQUEST without NLM_F_DUMP -> inet_diag_get_exact ->
+	 * mptcp_diag_dump_one. */
+	nlh->nlmsg_flags = NLM_F_REQUEST;
+	nlh->nlmsg_seq   = 12;
+	nlh->nlmsg_pid   = 0;
+	nlh->nlmsg_len   = NLMSG_HDRLEN + NLMSG_ALIGN(sizeof(*req));
+	req = (struct brf_inet_diag_req_v2 *)NLMSG_DATA(nlh);
+	req->sdiag_family   = family;
+	req->sdiag_protocol = (uint8_t)IPPROTO_MPTCP;
+	req->idiag_ext      = ext;
+	req->idiag_states   = (uint32_t)-1; /* match any state */
+	/* Kernel reads id.idiag_cookie[0] as the MPTCP token
+	 * (mptcp_diag.c:38).  The other id.* fields are unused by
+	 * mptcp_diag_dump_one. */
+	req->id.idiag_cookie[0] = pair->token;
+	req->id.idiag_cookie[1] = 0;
+
+	if (send(sd_sock, buf, nlh->nlmsg_len, 0) < 0) {
+		debug("syz_mptcp_diag_get_one: send: %s\n",
+		      strerror(errno));
+		close(sd_sock);
+		return -1;
+	}
+
+	/* Drain.  Don't parse; we want the kernel-side dump_one +
+	 * inet_sk_diag_fill paths exercised. */
+	for (;;) {
+		ssize_t n = recv(sd_sock, buf, sizeof(buf), MSG_DONTWAIT);
+		if (n < 0)
+			break;
+		if (n == 0)
+			break;
+		if (((struct nlmsghdr *)buf)->nlmsg_type == NLMSG_DONE)
+			break;
+	}
+
+	close(sd_sock);
+	debug("syz_mptcp_diag_get_one: slot=%ld family=%u token=0x%08x done\n",
+	      slot, family, pair->token);
+	return 0;
+}
+#endif
+
 #if SYZ_EXECUTOR || __NR_syz_mptcp_setsockopt_fuzz
 /*
  * v08 + gap 3: setsockopt with a fuzzer-controlled level, optname and
