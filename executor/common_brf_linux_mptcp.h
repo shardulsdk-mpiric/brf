@@ -4430,4 +4430,81 @@ static long syz_mptcp_sock_op(volatile long a0, volatile long a1,
 }
 #endif
 
+#if SYZ_EXECUTOR || __NR_syz_mptcp_shutdown_fuzz
+/*
+ * A4 / audit follow-on: deepen mptcp_shutdown coverage.
+ * syz_mptcp_sock_op's MPTCP_OP_SHUTDOWN always targets
+ * pair->client_msk_fd, so the server-msk and listening-fd
+ * shutdown paths are unhit -- the audit flagged mptcp_shutdown
+ * as PARTIAL on this basis.
+ *
+ * mptcp_shutdown (protocol.c:3953) only invokes
+ * __mptcp_wr_shutdown when (how & SEND_SHUTDOWN), which then
+ * propagates DATA_FIN via mptcp_shutdown_subflows to every
+ * subflow and drives the FIN_WAIT1 / FIN_WAIT2 / CLOSING /
+ * LAST_ACK state machine.  Shutting from the server msk
+ * exercises the *acceptor*-side propagation; shutting from the
+ * listening fd exercises a different validation surface
+ * entirely (listen() socket shutdown -> rejects with -ENOTCONN
+ * on the kernel side, but the dispatcher path matters).
+ *
+ * `how` is left fuzzer-controlled (not masked).  Valid Linux
+ * values are 0..2 (SHUT_RD / SHUT_WR / SHUT_RDWR); other
+ * values exercise argument-validation paths in the generic
+ * sock-level shutdown().
+ */
+#define MPTCP_SHUT_CLIENT 0
+#define MPTCP_SHUT_SERVER 1
+#define MPTCP_SHUT_LISTEN 2
+
+static long syz_mptcp_shutdown_fuzz(volatile long a0, volatile long a1,
+				    volatile long a2)
+{
+	struct brf_mptcp_pair_state *pair;
+	long slot = a0;
+	int target = (int)a1;
+	int how = (int)a2;
+	int fd;
+
+	if (slot < 0 || slot >= MPTCP_PAIR_POOL_SIZE) {
+		debug("syz_mptcp_shutdown_fuzz: slot %ld out of range\n",
+		      slot);
+		return -1;
+	}
+	pair = &brf_mptcp_pair_pool[slot];
+	if (!pair->in_use) {
+		debug("syz_mptcp_shutdown_fuzz: slot %ld not in use\n",
+		      slot);
+		return -1;
+	}
+
+	switch (target) {
+	case MPTCP_SHUT_CLIENT:
+		fd = pair->client_msk_fd;
+		break;
+	case MPTCP_SHUT_SERVER:
+		fd = pair->server_msk_fd;
+		break;
+	case MPTCP_SHUT_LISTEN:
+		fd = pair->server_listen_fd;
+		break;
+	default:
+		debug("syz_mptcp_shutdown_fuzz: unknown target=%d\n",
+		      target);
+		return -1;
+	}
+
+	if (fd < 0) {
+		debug("syz_mptcp_shutdown_fuzz: slot=%ld target=%d fd<0\n",
+		      slot, target);
+		return -1;
+	}
+
+	(void)shutdown(fd, how);
+	debug("syz_mptcp_shutdown_fuzz: slot=%ld target=%d how=%d done\n",
+	      slot, target, how);
+	return 0;
+}
+#endif
+
 #endif // BRF_COMMON_LINUX_MPTCP_H

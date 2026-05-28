@@ -184,9 +184,24 @@ mptcp_sysctl = MPTCP_SYSCTL_ADD_ADDR_TIMEOUT, MPTCP_SYSCTL_CHECKSUM, MPTCP_SYSCT
 # fd -- DISCONNECT (connect AF_UNSPEC -> mptcp_disconnect), POLL
 # (mptcp_poll), IOCTL (mptcp_ioctl), SHUTDOWN (mptcp_shutdown).  arg is
 # the fuzzed poll events mask / ioctl request / shutdown how.
+# All ops target pair->client_msk_fd; see syz_mptcp_shutdown_fuzz (A4)
+# for target-selectable shutdown coverage.
 syz_mptcp_sock_op(pair mptcp_pair, op flags[mptcp_sock_op], arg int32)
 
 mptcp_sock_op = MPTCP_OP_DISCONNECT, MPTCP_OP_POLL, MPTCP_OP_IOCTL, MPTCP_OP_SHUTDOWN
+
+# syz_mptcp_shutdown_fuzz (A4, mptcp_shutdown deepening): shutdown()
+# targeting either the client msk, the server msk, or the listening
+# fd, with a fuzzer-controlled `how`.  mptcp_shutdown
+# (protocol.c:3953) only triggers __mptcp_wr_shutdown when
+# how & SEND_SHUTDOWN, which then propagates a DATA_FIN to all
+# subflows and walks the FIN_WAIT1 / FIN_WAIT2 / CLOSING / LAST_ACK
+# state machine.  syz_mptcp_sock_op's MPTCP_OP_SHUTDOWN only targets
+# the client msk; this pseudo-syscall reaches the server-side and
+# listen-fd shutdown paths the audit noted as PARTIAL.
+syz_mptcp_shutdown_fuzz(pair mptcp_pair, target flags[mptcp_shut_target], how int32)
+
+mptcp_shut_target = MPTCP_SHUT_CLIENT, MPTCP_SHUT_SERVER, MPTCP_SHUT_LISTEN
 
 # Out-param struct.  Mirrors `struct brf_mptcp_pair_state_out` in
 # executor/common_brf_linux_mptcp.h.  Field order and sizes must
