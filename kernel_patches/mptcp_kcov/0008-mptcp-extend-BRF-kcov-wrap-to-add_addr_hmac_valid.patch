@@ -1,0 +1,66 @@
+From 5d139d153587908026987021883993480f2350dc Mon Sep 17 00:00:00 2001
+From: Shardul Bankar <shardul.b@mpiricsoftware.com>
+Date: Tue, 26 May 2026 04:11:47 +0530
+Subject: [PATCH] mptcp: extend BRF kcov wrap to add_addr_hmac_valid
+
+Patch 0002 wrapped three subflow-level validity gates
+(subflow_token_join_request, subflow_hmac_valid, subflow_thmac_valid)
+with the BRF kcov remote macros so coverage from the MP_JOIN
+authentication path is attributed to the per-msk kcov handle plumbed
+via MPTCP_KCOV_HANDLE.  Patch 0004 extended the wrap to the option
+parser entry (mptcp_get_options / mptcp_parse_option).
+
+This patch closes a remaining coverage blind spot: the ADD_ADDR
+HMAC validation function.  The BRF harness already mutates ADD_ADDR
+HMAC bytes via the NFQUEUE wire-mutation worker (gap 7,
+MPTCP_PM_OPT_ADDR_HMAC), but without a kcov wrap on
+add_addr_hmac_valid the coverage-guided corpus is blind to whether
+those mutations actually reach the validator's body or are rejected
+earlier on the parse path.  Adding the wrap completes the loop
+between the harness's mutation surface and the corpus's coverage
+feedback.
+
+Structurally identical to patch 0002's wraps: snapshot the kcov
+handle once via BRF_MPTCP_KCOV_START(msk), start AFTER the cheap
+echo bypass (that early return is uninteresting and not worth
+instrumenting), stop before return.  Runs in softirq context
+(option parser path), which patch 0005's in_serving_softirq()
+guard already covers.
+
+Assisted-by: Claude:claude-opus-4-7
+Signed-off-by: Shardul Bankar <shardul.b@mpiricsoftware.com>
+---
+ net/mptcp/options.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/net/mptcp/options.c b/net/mptcp/options.c
+index 58cba581f7907..d27b42d74aee2 100644
+--- a/net/mptcp/options.c
++++ b/net/mptcp/options.c
+@@ -1144,10 +1144,12 @@ static bool add_addr_hmac_valid(struct mptcp_sock *msk,
+ 				struct mptcp_options_received *mp_opt)
+ {
+ 	u64 hmac = 0;
++	bool ok;
+ 
+ 	if (mp_opt->echo)
+ 		return true;
+ 
++	BRF_MPTCP_KCOV_START(msk);
+ 	hmac = add_addr_generate_hmac(READ_ONCE(msk->remote_key),
+ 				      READ_ONCE(msk->local_key),
+ 				      &mp_opt->addr);
+@@ -1155,7 +1157,9 @@ static bool add_addr_hmac_valid(struct mptcp_sock *msk,
+ 	pr_debug("msk=%p, ahmac=%llu, mp_opt->ahmac=%llu\n",
+ 		 msk, hmac, mp_opt->ahmac);
+ 
+-	return hmac == mp_opt->ahmac;
++	ok = hmac == mp_opt->ahmac;
++	BRF_MPTCP_KCOV_STOP(msk);
++	return ok;
+ }
+ 
+ /* Return false in case of error (or subflow has been reset),
+-- 
+2.34.1
+
