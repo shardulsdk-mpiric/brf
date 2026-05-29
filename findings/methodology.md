@@ -54,10 +54,10 @@ hypothesis, its status, and where the work is headed — is
 > reaches code stateless Syzkaller cannot, with a documented
 > human-verification step that determines whether it works.**
 
-The harness this methodology produced is 25 pseudo-syscalls (21
+The harness this methodology produced is 27 pseudo-syscalls (23
 MPTCP + 4 BPF), with wire-level option mutation, a generated BPF
 struct_ops MPTCP scheduler (Phase 3 / "the flagship") whose
-verifier-accept rate measures at ~93% on 1,422 loads, and **two
+verifier-accept rate measures at ~60% over 32,822 loads, and **two
 real, upstream-mergeable bugs on two distinct surfaces of
 `net/mptcp/`**:
 
@@ -153,7 +153,7 @@ uses the captured cryptographic state to satisfy the kernel's
 input validation while still leaving every individual byte the
 fuzzer chose under mutation pressure.
 
-The final count is **25 pseudo-syscalls** (21 MPTCP + 4 BPF).
+The final count is **27 pseudo-syscalls** (23 MPTCP + 4 BPF).
 This is the BRF state-carrier pattern instantiated for a network
 protocol flow.  It is the generalisable artefact: the same shape
 will fit QUIC (token = ICID; carrier holds the 1-RTT and
@@ -249,7 +249,10 @@ struct_ops/verifier path and the TCP/core code the kfuncs reach,
 not in deeper *MPTCP-protocol* coverage (the `net/mptcp` filtered
 surface is ~flat at ~43%).  The verifier-accept *rate* on
 generated bodies, measured by the instrumentation in Section 3.5,
-is **~93%** (1,422 loads in `run_20260522_232150`).
+is **~60%** aggregated over 32,822 loads through the hardened
+instrumentation; the earlier **~93%** was a 1,422-load snapshot
+from `run_20260522_232150` (Section 4 records why the larger-N
+figure is the defensible one).
 
 ### 3.4 Audit-driven coverage-gap closure
 
@@ -289,7 +292,7 @@ direction change.
 Two distinct instrumentation kinds.
 
 **Coverage instrumentation — kcov on the gated paths.**  Patch
-series `kernel_patches/mptcp_kcov/0001` through `0007`:
+series `kernel_patches/mptcp_kcov/0001` through `0009`:
 
 - Patch 0001 adds an `MPTCP_KCOV_HANDLE` setsockopt + per-msk
   kcov scratch buffer + a `kcov_owner` field that survives
@@ -314,6 +317,13 @@ series `kernel_patches/mptcp_kcov/0001` through `0007`:
   clone-clear).  Patch 0007 is **VM-verified** as of 2026-05-23:
   zero `kcov_remote_start_prealloc` WARNINGs across
   `run_20260522_232150`.
+- Patches 0008 / 0009 extend the kcov wrap to the two remaining
+  HMAC paths: `add_addr_hmac_valid` (the ADD_ADDR HMAC validator,
+  exercised by the `MPTCP_PM_OPT_ADDR_HMAC` wire mutation) and the
+  HMAC-failure reset branches in `subflow_syn_recv_sock` /
+  `subflow_finish_connect` (the `MPTCP_MIB_JOINACKMAC` /
+  `JOINSYNACKMAC` increments) — this wrap is their only coverage
+  source.
 
 Without this series, the headline crypto-gate coverage feedback
 is dead.  We learned this the hard way: for ~6 weeks the
@@ -350,8 +360,13 @@ append-only stats file on a 9p host share
   without an executor rebuild.
 
 Result: a measure-driven generator-tuning loop.  The current
-number is **~93%** (1,422 loads, raw 90.3% with the load-twice
-fix applied → ~93% true), in `run_20260522_232150`.
+aggregate, over 32,822 struct_ops loads through the hardened
+instrumentation, is **~60%** accept — the steady-state shape for
+a fuzzer, where some rejection is the sign that mutations
+actually diverge from a loadable template.  An earlier 1,422-load
+snapshot (`run_20260522_232150`) read ~93%; Section 4 records why
+the larger-N figure is the defensible headline, and the libbpf
+relocation defect the larger sample surfaced.
 
 The principle generalises: whichever quality property the
 generator can silently degrade (verifier-accept rate for BPF
@@ -490,7 +505,20 @@ required human triage to recognise.
   attempted twice", which is *not* a verifier rejection.  The
   original instrumentation counted those as REJECT (~37 of
   138).  Fix: a parallel `struct_ops_verif_recorded[]` array
-  records outcome on the first load only.  True rate: ~93%.
+  records outcome on the first load only, lifting that snapshot
+  to ~93%.  **That ~93% was itself an early-run artifact.**
+  Aggregated over 32,822 loads through the hardened
+  instrumentation, the verifier-accept rate is **~60%** — and
+  that, not the 1,422-load snapshot, is the defensible headline.
+  The drop is not a regression: ~60% is the expected steady-state
+  for a *fuzzer* (a near-100% accept rate would mean the
+  mutations barely diverge from a loadable template).  The larger
+  sample also surfaced a real generator/BTF issue — a libbpf
+  relocation defect (`relo: unexpected insn value`) on **~2% of
+  loads** — which we are investigating.  Instrumenting the knob
+  the generator can silently degrade is what made both the
+  corrected rate and the defect visible; this is the recipe
+  working as designed, not against it.
 - **The first verifier-log capture (VI2) grabbed the generic
   wrapper.**  The libbpf print callback `vsnprintf`'d each WARN
   message into a single buffer, *overwriting*; on a load
@@ -671,8 +699,8 @@ Honest limits:
   defects; the human-VM-test loop is not optional.
 - **It does not prove that the BPF struct_ops scheduler
   surface produces bugs.**  Phase 3 is implemented, the
-  pipeline runs end-to-end, the verifier-accept rate is ~93%,
-  total coverage gained +16%.  No crashes from the
+  pipeline runs end-to-end, the verifier-accept rate is ~60%
+  (Section 4), total coverage gained +16%.  No crashes from the
   struct_ops/kfunc surface itself.  The reachability is
   demonstrated; the bug-finding from this surface is not.
 
@@ -710,8 +738,8 @@ The methodology is a small, opinionated, prescriptive recipe:
 strict VM verification + audit-driven gap closure + kcov on the
 gated paths + continuous quality instrumentation**.  It is
 demonstrably effective at reaching protocol-flow code that
-stateless fuzzing cannot reach (25 pseudo-syscalls, +16%
-coverage on the BPF flagship, ~93% verifier-accept on
+stateless fuzzing cannot reach (27 pseudo-syscalls, +16%
+coverage on the BPF flagship, ~60% verifier-accept on
 generated struct_ops bodies, **two upstream-mergeable bugs on
 two distinct surfaces of `net/mptcp/`** — userspace-PM
 handlers and kernel-PM admin handlers).  It is honestly
