@@ -37,6 +37,12 @@ dashboard/app/.gcloudignore
 /.claude/tasks/
 /.claude/settings.local.json
 /.claude/worktrees/
+# Private working memory that must never reach the public remote:
+# subsystem/maintainer positioning (often sourced from offlist mail),
+# and any other strictly-internal notes.  Local-only, never tracked.
+/.claude/mptcp/
+/.claude/maintainers/
+/.claude/private/
 # Per-user working memory under .claude/users/<name>/ is local.
 # Tracked exceptions are pinned with negative patterns below.
 /.claude/users/*/tasks/

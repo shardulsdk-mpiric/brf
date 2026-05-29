@@ -49,6 +49,11 @@ writing the active task in `shardul/` is:
 The task brief at `.claude/users/shardul/tasks/mptcp_protocol_fuzzing/CLAUDE.md`
 is the primary read.
 
+The project's standing **working frame** -- the working hypothesis,
+its status, the pattern-vs-engine contribution split, and the transfer
+targets -- is `findings/working_frame.md`.  Load it when reasoning
+about scope or direction.
+
 ## Workspace root convention
 
 All absolute paths in this tree's docs and scripts are expressed

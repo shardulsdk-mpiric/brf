@@ -39,6 +39,10 @@ Mpiric's role is **extender**, not author.
 
 ## 1. The headline claim
 
+*The strategic frame this methodology serves — the working
+hypothesis, its status, and where the work is headed — is
+`working_frame.md`.*
+
 > **A small team can extend a published academic fuzzer (BRF) to
 > reach a kernel transport-security protocol's hardest gates by (i)
 > reusing BRF's pseudo-syscall + state-carrier pattern, (ii) using
