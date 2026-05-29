@@ -689,10 +689,6 @@ that references BRF must cite both:
   `papers/3643778.pdf` in this tree.
 - **Syzkaller** — Vyukov, D. et al., `google/syzkaller`.
 
-Funding acknowledgment for any presentation built on BRF: **NSF
-#1763172, NSF #1846230, Google ASPIRE 2020** (Hung & Amiri Sani's
-BRF was funded under these).
-
 License: Apache 2.0.  `LICENSE`, `AUTHORS`, and `CONTRIBUTORS`
 are preserved in this fork.  Mpiric's role is *extender*; we
 never refer to BRF as ours, rename the project, or claim

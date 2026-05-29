@@ -27,8 +27,7 @@ shardulsdk-mpiric/brf  (this checkout)
 ```
 
 License: Apache 2.0.  No CLA.  Attribution requirements: preserve
-`LICENSE`, `AUTHORS`, `CONTRIBUTORS`; cite Syzkaller and BRF (with
-funding ack: NSF #1763172, NSF #1846230, Google ASPIRE 2020) in any
+`LICENSE`, `AUTHORS`, `CONTRIBUTORS`; cite Syzkaller and BRF in any
 external presentation.
 
 **Mpiric's contribution shape:** *extension*, not authorship.  We
@@ -136,8 +135,7 @@ Session contract:
 
 - **Citation discipline.** Every external artifact (talk, paper,
   blog, lore post) that references BRF must cite both Syzkaller
-  and Hung+Sani's BRF paper.  Funding acknowledgment for any
-  presentation built on BRF.  No exceptions; this protects Mpiric's
+  and Hung+Sani's BRF paper.  No exceptions; this protects Mpiric's
   reputation in the academic-leaning kernel-security community.
 - **Extension, not appropriation.** We can fork, modify, and present
   extensions.  We do not refer to BRF as ours, claim authorship,

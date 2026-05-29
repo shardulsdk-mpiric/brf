@@ -51,7 +51,6 @@ findings/
 External artifacts (talks, papers, blog posts) that draw on
 these findings cite BRF (Hung & Amiri Sani, UC Irvine,
 arXiv:2305.08782) and Syzkaller (Vyukov et al.,
-google/syzkaller), with the funding acknowledgment (NSF
-#1763172, #1846230, Google ASPIRE 2020) on relevant slides.
-Findings are presented as products of the Mpiric extension on
-top of BRF, not as products of a separately-named tool.
+google/syzkaller).  Findings are presented as products of the
+Mpiric extension on top of BRF, not as products of a
+separately-named tool.

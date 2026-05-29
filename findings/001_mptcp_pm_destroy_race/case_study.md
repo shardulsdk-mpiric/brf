@@ -497,8 +497,6 @@ finding** (slide deck, talk paper, blog post, lore message):
   Practical eBPF Runtime Fuzzer*.  arXiv:2305.08782; ACM venue
   version at `papers/3643778.pdf` (this BRF tree).
 - Vyukov, D. et al.  *Syzkaller*, google/syzkaller.
-- Funding acknowledgment slide: NSF #1763172, NSF #1846230, Google
-  ASPIRE 2020 (Hung & Amiri Sani's BRF was funded under these).
 
 Mpiric's role is **extender**, not author.  The harness extensions
 are Mpiric's contribution; BRF itself and the pseudo-syscall +
