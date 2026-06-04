@@ -1,0 +1,132 @@
+diff --git a/executor/executor.cc b/executor/executor.cc
+index 3ba21e846..6b3371eb7 100644
+--- a/executor/executor.cc
++++ b/executor/executor.cc
+@@ -931,6 +931,84 @@ void execute_glob()
+ }
+ 
+ // execute_one executes program stored in input_data.
++#if GOOS_linux && defined(SYZ_MPTCP_MIB_STATS)
++// EXPERIMENT-ONLY measurement telemetry (netdev 0x1A fair coverage baseline).
++// Every >=10s, snapshot this VM's MPTcpExt MIB counters from /proc/net/netstat
++// to a 9p host share (mount_tag "mibstats"), so the baseline can quantify
++// MP_JOIN attempts / HMAC pass+fail per arm. Measurement-only: reads a STANDARD
++// counter (no kernel dependency), runs at the top of execute_one (outside any
++// kcov window), errno saved/restored, all failures ignored. One file per
++// VM-boot (boot-id) avoids cross-VM 9p append contention; within a VM, O_APPEND
++// of a sub-PIPE_BUF record is atomic. Inert unless built with
++// CXXFLAGS=-DSYZ_MPTCP_MIB_STATS=1 (both arms, symmetric).
++static void mptcp_mib_snapshot()
++{
++	static uint64 last_ms = 0;
++	static int fd = -2; // -2 uninit, -1 disabled, >=0 open
++	uint64 now = current_time_ms();
++	if (fd != -1 && last_ms && now - last_ms < 10000)
++		return;
++	int saved_errno = errno;
++	if (fd == -2) {
++		mkdir("/mnt/mptcp_mib_stats", 0777);
++		mount("mibstats", "/mnt/mptcp_mib_stats", "9p", 0, "trans=virtio,version=9p2000.L");
++		char boot[64] = "nobootid";
++		int bfd = open("/proc/sys/kernel/random/boot_id", O_RDONLY);
++		if (bfd >= 0) {
++			ssize_t bn = read(bfd, boot, sizeof(boot) - 1);
++			close(bfd);
++			if (bn > 0) {
++				boot[bn] = 0;
++				for (char* c = boot; *c; c++)
++					if (*c == '\n') {
++						*c = 0;
++						break;
++					}
++			}
++		}
++		char path[160];
++		snprintf(path, sizeof(path), "/mnt/mptcp_mib_stats/mib.%s.log", boot);
++		fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
++		if (fd < 0) {
++			snprintf(path, sizeof(path), "/tmp/mptcp_mib.%s.log", boot);
++			fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
++		}
++		if (fd < 0) {
++			fd = -1;
++			errno = saved_errno;
++			return;
++		}
++	}
++	last_ms = now;
++	int nf = open("/proc/net/netstat", O_RDONLY);
++	if (nf >= 0) {
++		// static (off-stack): execute_one runs serially per proc, and these
++		// would otherwise blow syzkaller's -Wframe-larger-than=16384 limit.
++		static char nbuf[8192];
++		ssize_t n = read(nf, nbuf, sizeof(nbuf) - 1);
++		close(nf);
++		if (n > 0) {
++			nbuf[n] = 0;
++			for (char* p = nbuf; (p = strstr(p, "MPTcpExt:")) != NULL;) {
++				char* eol = strchr(p, '\n');
++				int len = eol ? (int)(eol - p) : (int)strlen(p);
++				static char rec[8400];
++				int rl = snprintf(rec, sizeof(rec), "%llu proc=%llu %.*s\n",
++						  (unsigned long long)now, (unsigned long long)procid, len, p);
++				if (rl > 0) {
++					ssize_t w = write(fd, rec, (size_t)rl);
++					(void)w;
++				}
++				if (!eol)
++					break;
++				p = eol + 1;
++			}
++		}
++	}
++	errno = saved_errno;
++}
++#endif
++
+ void execute_one()
+ {
+ 	if (request_type == rpc::RequestType::Glob) {
+@@ -941,6 +1019,9 @@ void execute_one()
+ 		failmsg("bad request type", "type=%llu", (uint64)request_type);
+ 
+ 	in_execute_one = true;
++#if GOOS_linux && defined(SYZ_MPTCP_MIB_STATS)
++	mptcp_mib_snapshot();
++#endif
+ #if GOOS_linux
+ 	char buf[64];
+ 	// Linux TASK_COMM_LEN is only 16, so the name needs to be compact.
+@@ -1574,6 +1655,32 @@ void execute_call(thread_t* th)
+ 
+ 	if (flag_coverage)
+ 		cover_collect(&th->cov);
++#if GOOS_linux && defined(SYZ_MPTCP_KCOV_BASELINE)
++	// EXPERIMENT-ONLY measurement shim (netdev 0x1A fair coverage baseline).
++	// Mirror the BRF harness: register THIS proc's kcov common handle on every
++	// MPTCP socket / accepted fd, so the shared kernel's BRF kcov softirq wraps
++	// (subflow_token_join_request, subflow_thmac_valid, subflow_hmac_valid, the
++	// option parser, ADD_ADDR HMAC, HMAC-failure reset) attribute their coverage
++	// to us. Without it, stock cannot SEE the crypto-gate coverage even on paths
++	// it reaches, biasing the comparison at exactly the headline surface.
++	// Pure measurement: setsockopt(MPTCP_KCOV_HANDLE) sets a kcov handle and
++	// allocates the kcov area; it changes NO MPTCP behavior. Run after
++	// cover_collect so it does not pollute the triggering call's coverage;
++	// errno is saved/restored; failures (non-MPTCP fds) are ignored.
++	// Inert unless built with the shim define. Build via baseline/build_stock_arm.sh,
++	// or: make executor CXXFLAGS=-DSYZ_MPTCP_KCOV_BASELINE=1  -- use CXXFLAGS, NOT
++	// ADDCXXFLAGS (syz-make auto-sets ADDCXXFLAGS to -I./-Iexecutor/_include etc.;
++	// overriding it drops the include paths and the build fails on flatrpc.h).
++	if (th->res >= 0 && call->name &&
++	    ((strncmp(call->name, "socket", 6) == 0 && th->args[2] == 262 /*IPPROTO_MPTCP*/) ||
++	     strncmp(call->name, "accept", 6) == 0)) {
++		int mptcp_kcov_saved_errno = errno;
++		uint64 mptcp_kcov_h = kcov_remote_handle(KCOV_SUBSYSTEM_COMMON, procid + 1);
++		setsockopt((int)th->res, 284 /*SOL_MPTCP*/, 5 /*MPTCP_KCOV_HANDLE*/,
++			   &mptcp_kcov_h, sizeof(mptcp_kcov_h));
++		errno = mptcp_kcov_saved_errno;
++	}
++#endif
+ 	th->fault_injected = false;
+ 
+ 	if (th->call_props.fail_nth > 0)

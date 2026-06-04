@@ -65,3 +65,5 @@ kernel_patches/mptcp_kcov/test_mp_*
 # Local VM swap files (created by mkswap inside the dev_env VM).
 swap-file
 /swap-*
+# stray python bytecode from validating baseline/ helpers
+baseline/__pycache__/
