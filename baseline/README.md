@@ -62,7 +62,52 @@ coverage instrumentation; only the harness differs.*
   `CXXFLAGS`); the helper handles this.
 - `mib_tally.py` -- host-side: sums the MPTcpExt counters from an arm's
   `mib_stats/` dir (per distinct boot+proc netns).  Run on the host:
-  `mib_tally.py <workdir_baseline_{brf,stock}>/mib_stats`.
+  `mib_tally.py <workdir_baseline_{brf,stock}>/mib_stats`.  Deep MIB-only.
+- `baseline_summary.py` -- host-side WHOLE-RUN summarizer (all telemetry,
+  not just MIB).  Side-by-side stock-vs-BRF report covering: run status +
+  liveness (ledger + bench freshness); the matched coverage/corpus/exec/
+  crash headline (from `-bench`); the MP_JOIN crypto-gate funnel (MIB, with
+  an exec-normalized "valid joins / 1k execs" fairness rate); per-arm crash
+  signatures (flags harness-noise vs real bugs); and the BRF-only struct_ops
+  verifier accept/reject tally.  **Scopes to the current run by default**
+  (since the last ledger `SESSION_START`), so per-run aggregates match the
+  per-run bench window; `--all` for cumulative.  Safe to run mid-run.
+  ```
+  baseline_summary.py <run_root>            # one-shot (run_root = the syz_manager dir)
+  baseline_summary.py <run_root> --watch 30 # refresh every 30s
+  baseline_summary.py <run_root> --all      # ignore run scoping (cumulative)
+  baseline_summary.py <run_root> --present  # conference-style picture (ASCII funnel)
+  ```
+  The `--present` view renders the audience-facing story: a monotonic
+  "how deep into the MPTCP handshake does each fuzzer reach?" funnel
+  (stock stalls at the first SYN; BRF descends to the HMAC gate);
+  per-attempt CONVERSION RATES (SYN->established: stock ~0%, BRF much higher --
+  the volume-independent rebuttal to "BRF just does more attempts"); the
+  scoped-coverage bar; an ASCII coverage-trajectory sparkline + brf/stock
+  ratio over the run (shows the lead is stable/widening, not a lucky
+  instant); and the pass/fail split at the gate.  `--watch` composes with
+  it.  MIB aggregation sums the PEAK of each monotonic
+  segment per `(boot, proc)` so executor-restart netns resets are not
+  undercounted (matches `mib_tally.py`).
+- `baseline_plot.py` -- GRAPHICAL dashboard (PNG) of the same data, for
+  when a picture beats a table.  Reuses `baseline_summary.py`'s parsers
+  (same current-run scoping) and renders four panels: coverage-over-time
+  (both arms), the brf/stock coverage ratio over time (lead stable/widening
+  vs a fluke), the MP_JOIN handshake funnel (grouped bars, how deep each
+  reaches), and the HMAC gate pass/fail + per-attempt conversion rate.
+  Needs `matplotlib`+`numpy`.
+  ```
+  baseline_plot.py <run_root>                 # -> <run_root>/baseline_plots/dashboard_<ts>.png
+  baseline_plot.py <run_root> -o /tmp/d.png   # custom output path
+  baseline_plot.py <run_root> --all           # cumulative across runs
+  baseline_plot.py <run_root> --split         # one PNG per panel (panel_<name>_<ts>.png)
+                                              #   -- handy to drop a single chart into a slide
+  baseline_plot.py <run_root> --watch 5       # regenerate every 5 min (live-updating image);
+                                              #   pair with a fixed -o so it overwrites one file
+  ```
+  Panels are factored out (`PANELS` list), so `--split` and the combined
+  dashboard render the exact same charts.  `--watch N -o live.png` keeps a
+  single file refreshed (open it in any image viewer that auto-reloads).
 
 ## Build (in the dev_env VM, for symmetry with the BRF build)
 
