@@ -750,9 +750,95 @@ void realloc_output_data()
 #endif // if SYZ_EXECUTOR_USES_SHMEM
 
 // execute_one executes program stored in input_data.
+#if GOOS_linux && defined(SYZ_MPTCP_MIB_STATS)
+// EXPERIMENT-ONLY measurement telemetry (netdev 0x1A fair coverage baseline).
+// Every >=10s, snapshot this VM's MPTcpExt MIB counters from /proc/net/netstat
+// to a 9p host share (mount_tag "mibstats"), so the baseline can quantify
+// MP_JOIN attempts / HMAC pass+fail per arm. Measurement-only: reads a STANDARD
+// counter (no kernel dependency), runs at the top of execute_one (outside any
+// kcov window), errno saved/restored, all failures ignored. One file per
+// VM-boot (boot-id) avoids cross-VM 9p append contention; within a VM, O_APPEND
+// of a sub-PIPE_BUF record is atomic. Inert unless built with
+// CXXFLAGS=-DSYZ_MPTCP_MIB_STATS=1 (both arms, symmetric).
+static void mptcp_mib_snapshot()
+{
+	static uint64 last_ms = 0;
+	static int fd = -2; // -2 uninit, -1 disabled, >=0 open
+	uint64 now = current_time_ms();
+	if (fd != -1 && last_ms && now - last_ms < 10000)
+		return;
+	int saved_errno = errno;
+	if (fd == -2) {
+		mkdir("/mnt/mptcp_mib_stats", 0777);
+		mount("mibstats", "/mnt/mptcp_mib_stats", "9p", 0, "trans=virtio,version=9p2000.L");
+		char boot[64] = "nobootid";
+		int bfd = open("/proc/sys/kernel/random/boot_id", O_RDONLY);
+		if (bfd >= 0) {
+			ssize_t bn = read(bfd, boot, sizeof(boot) - 1);
+			close(bfd);
+			if (bn > 0) {
+				boot[bn] = 0;
+				for (char* c = boot; *c; c++)
+					if (*c == '\n') {
+						*c = 0;
+						break;
+					}
+			}
+		}
+		// Probe, in order: the lazy /mnt mount above (older no-chroot sandbox,
+		// e.g. BRF's executor); then /mibstats (newer sandbox=none does
+		// pivot_root+chroot in sandbox_common_mount_tmpfs, which -- when built
+		// with SYZ_MPTCP_MIB_STATS -- mounts the 9p share into the new root as
+		// /mibstats); then a host-invisible /tmp last resort.  Keeping this
+		// identical in both executors lets the snapshot work under either sandbox.
+		char path[160];
+		const char* dirs[] = {"/mnt/mptcp_mib_stats", "/mibstats", "/tmp"};
+		for (unsigned di = 0; di < sizeof(dirs) / sizeof(dirs[0]) && fd < 0; di++) {
+			snprintf(path, sizeof(path), "%s/mib.%s.log", dirs[di], boot);
+			fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+		}
+		if (fd < 0) {
+			fd = -1;
+			errno = saved_errno;
+			return;
+		}
+	}
+	last_ms = now;
+	int nf = open("/proc/net/netstat", O_RDONLY);
+	if (nf >= 0) {
+		// static (off-stack): execute_one runs serially per proc, and these
+		// would otherwise blow syzkaller's -Wframe-larger-than=16384 limit.
+		static char nbuf[8192];
+		ssize_t n = read(nf, nbuf, sizeof(nbuf) - 1);
+		close(nf);
+		if (n > 0) {
+			nbuf[n] = 0;
+			for (char* p = nbuf; (p = strstr(p, "MPTcpExt:")) != NULL;) {
+				char* eol = strchr(p, '\n');
+				int len = eol ? (int)(eol - p) : (int)strlen(p);
+				static char rec[8400];
+				int rl = snprintf(rec, sizeof(rec), "%llu proc=%llu %.*s\n",
+						  (unsigned long long)now, (unsigned long long)procid, len, p);
+				if (rl > 0) {
+					ssize_t w = write(fd, rec, (size_t)rl);
+					(void)w;
+				}
+				if (!eol)
+					break;
+				p = eol + 1;
+			}
+		}
+	}
+	errno = saved_errno;
+}
+#endif
+
 void execute_one()
 {
 	in_execute_one = true;
+#if GOOS_linux && defined(SYZ_MPTCP_MIB_STATS)
+	mptcp_mib_snapshot();
+#endif
 #if SYZ_EXECUTOR_USES_SHMEM
 	realloc_output_data();
 	output_pos = output_data;

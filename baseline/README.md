@@ -27,9 +27,10 @@ coverage instrumentation; only the harness differs.*
 ## Files
 
 - `0001-stock-syzkaller-baseline-executor-instrumentation.patch` -- the
-  stock `executor/executor.cc` changes, carrying TWO independent,
-  measurement-only, build-flag-gated instruments (both inert unless built
-  with their flag).  Apply to a fresh stock checkout with `git apply`.
+  stock `executor/executor.cc` (+ `executor/common_linux.h`) changes,
+  carrying TWO independent, measurement-only, build-flag-gated instruments
+  (both inert unless built with their flag).  Apply to a fresh stock
+  checkout with `git apply`.
   1. **kcov coverage-attribution shim** (`SYZ_MPTCP_KCOV_BASELINE`): sets
      `MPTCP_KCOV_HANDLE` on MPTCP sockets so stock's softirq crypto-gate
      coverage is attributed (see "Why a shim" above).
@@ -41,6 +42,18 @@ coverage instrumentation; only the harness differs.*
      window; errno saved/restored.  This same snapshot is also in the BRF
      executor (`open/src/fuzzing/brf/executor/executor.cc`) so BOTH arms
      are measured identically.
+     - **Sandbox-mount detail (the `common_linux.h` hunk).** Stock's
+       *newer* `do_sandbox_none()` calls `sandbox_common_mount_tmpfs()`,
+       which `pivot_root`+`chroot`s into a fresh root before any
+       `execute_one` runs -- so a lazy `mount()` of the 9p share from
+       inside `execute_one` can never reach the host (the new root has no
+       `/mnt`, writes silently fall back to a VM-local `/tmp`).  The
+       gated `common_linux.h` hunk mounts the `mibstats` share INTO the
+       new root (as `/mibstats`) *before* the pivot, where fork-children
+       inherit it.  The snapshot then probes `/mnt/mptcp_mib_stats` (the
+       BRF arm's *older* sandbox does NOT chroot, so its lazy mount still
+       works there), then `/mibstats` (stock), then a `/tmp` last resort
+       -- so the SAME `executor.cc` snapshot works under either sandbox.
 - `build_stock_arm.sh` -- builds the stock binaries (manager + fuzzer +
   executor) in one command with BOTH flags, handling the git-ownership guard.
 - `build_brf_arm.sh` -- rebuilds the BRF arm's executor with the MIB flag

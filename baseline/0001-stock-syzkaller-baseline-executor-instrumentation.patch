@@ -1,8 +1,30 @@
+diff --git a/executor/common_linux.h b/executor/common_linux.h
+index 22f2c1781..58333c5d2 100644
+--- a/executor/common_linux.h
++++ b/executor/common_linux.h
+@@ -4394,6 +4394,17 @@ static void sandbox_common_mount_tmpfs(void)
+ 	if (mount("/syz-inputs", "./syz-tmp/newroot/syz-inputs", NULL, bind_mount_flags | MS_RDONLY, NULL) && errno != ENOENT)
+ 		fail("mount(syz-inputs) failed");
+ 
++#ifdef SYZ_MPTCP_MIB_STATS
++	// Measurement-only (MPTCP MIB telemetry): mount the host 9p "mibstats" share
++	// INTO the new root, before pivot_root+chroot below, so it survives the chroot
++	// as /mibstats and the per-exec snapshot in execute_one can append to it.  A
++	// lazy mount from inside execute_one can't reach a host share post-chroot (the
++	// new root has no /mnt).  Best-effort: never fail the sandbox on the telemetry
++	// mount.  Inert unless built with -DSYZ_MPTCP_MIB_STATS=1.
++	if (mkdir("./syz-tmp/newroot/mibstats", 0700) == 0)
++		mount("mibstats", "./syz-tmp/newroot/mibstats", "9p", 0, "trans=virtio,version=9p2000.L");
++#endif
++
+ #if SYZ_EXECUTOR || SYZ_CGROUPS
+ 	initialize_cgroups();
+ #endif
 diff --git a/executor/executor.cc b/executor/executor.cc
-index 3ba21e846..6b3371eb7 100644
+index 3ba21e846..56c547e47 100644
 --- a/executor/executor.cc
 +++ b/executor/executor.cc
-@@ -931,6 +931,84 @@ void execute_glob()
+@@ -931,6 +931,89 @@ void execute_glob()
  }
  
  // execute_one executes program stored in input_data.
@@ -41,11 +63,16 @@ index 3ba21e846..6b3371eb7 100644
 +					}
 +			}
 +		}
++		// Probe, in order: the lazy /mnt mount above (older no-chroot sandbox,
++		// e.g. BRF's executor); then /mibstats (newer sandbox=none does
++		// pivot_root+chroot in sandbox_common_mount_tmpfs, which -- when built
++		// with SYZ_MPTCP_MIB_STATS -- mounts the 9p share into the new root as
++		// /mibstats); then a host-invisible /tmp last resort.  Keeping this
++		// identical in both executors lets the snapshot work under either sandbox.
 +		char path[160];
-+		snprintf(path, sizeof(path), "/mnt/mptcp_mib_stats/mib.%s.log", boot);
-+		fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
-+		if (fd < 0) {
-+			snprintf(path, sizeof(path), "/tmp/mptcp_mib.%s.log", boot);
++		const char* dirs[] = {"/mnt/mptcp_mib_stats", "/mibstats", "/tmp"};
++		for (unsigned di = 0; di < sizeof(dirs) / sizeof(dirs[0]) && fd < 0; di++) {
++			snprintf(path, sizeof(path), "%s/mib.%s.log", dirs[di], boot);
 +			fd = open(path, O_WRONLY | O_CREAT | O_APPEND, 0644);
 +		}
 +		if (fd < 0) {
@@ -87,7 +114,7 @@ index 3ba21e846..6b3371eb7 100644
  void execute_one()
  {
  	if (request_type == rpc::RequestType::Glob) {
-@@ -941,6 +1019,9 @@ void execute_one()
+@@ -941,6 +1024,9 @@ void execute_one()
  		failmsg("bad request type", "type=%llu", (uint64)request_type);
  
  	in_execute_one = true;
@@ -97,7 +124,7 @@ index 3ba21e846..6b3371eb7 100644
  #if GOOS_linux
  	char buf[64];
  	// Linux TASK_COMM_LEN is only 16, so the name needs to be compact.
-@@ -1574,6 +1655,32 @@ void execute_call(thread_t* th)
+@@ -1574,6 +1660,32 @@ void execute_call(thread_t* th)
  
  	if (flag_coverage)
  		cover_collect(&th->cov);
