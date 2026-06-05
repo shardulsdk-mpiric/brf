@@ -18,9 +18,10 @@ SYZ_SRC="${SYZ_SRC:-/mnt/src/fuzzing/syzkaller}"   # in-VM 9p path; override on 
 # and the build fails on `pkg/flatrpc/flatrpc.h: No such file`. The recipe uses
 # `$(ADDCXXFLAGS) $(CXXFLAGS)`, and syz-make leaves CXXFLAGS free for us.
 # Stock arm needs BOTH: the kcov coverage-attribution shim AND the MIB telemetry.
-# (The BRF arm needs only the MIB flag -- it already has its own kcov plumbing;
-#  build BRF's executor with: make executor CXXFLAGS=-DSYZ_MPTCP_MIB_STATS=1)
+# (The BRF arm needs only the MIB flag, in CFLAGS not CXXFLAGS -- use the sibling
+#  build_brf_arm.sh, which does a FULL make so fuzzer+executor revisions match.)
 FLAG="-DSYZ_MPTCP_KCOV_BASELINE=1 -DSYZ_MPTCP_MIB_STATS=1"
+JOBS="${JOBS:-4}"   # cap parallelism: sys/linux/gen OOM-kills the Go compiler on a RAM-limited VM at high -j
 
 [ -d "$SYZ_SRC" ] || { echo "Stock syzkaller tree not found: $SYZ_SRC (set SYZ_SRC=...)" >&2; exit 1; }
 
@@ -43,8 +44,8 @@ echo
 # sanitizer-coverage flags, etc.) and builds the host bins (syz-manager) + target.
 # Then rebuild the executor with our shim define appended via CXXFLAGS (ADDCXXFLAGS
 # stays auto-injected, so the includes survive).
-make          -j"$(nproc)"
-make executor CXXFLAGS="$FLAG" -j"$(nproc)"
+make          -j"$JOBS"
+make executor CXXFLAGS="$FLAG" -j"$JOBS"
 
 echo
 echo "=== Done. ==="
