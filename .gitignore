@@ -67,3 +67,5 @@ swap-file
 /swap-*
 # stray python bytecode from validating baseline/ helpers
 baseline/__pycache__/
+# stray plot output if a tool is pointed at the repo by mistake
+baseline_plots/

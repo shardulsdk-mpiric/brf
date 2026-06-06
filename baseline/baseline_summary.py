@@ -74,8 +74,10 @@ def c(n):
 # --------------------------------------------------------------------------- #
 # bench (-bench json stream: concatenated pretty-printed objects)
 # --------------------------------------------------------------------------- #
-def latest_bench(run_root, arm):
-    files = glob.glob(os.path.join(run_root, "baseline_logs", arm, "bench_*.json"))
+def latest_bench(run_root, arm, since=0.0, until=float("inf")):
+    files = [g for g in glob.glob(
+        os.path.join(run_root, "baseline_logs", arm, "bench_*.json"))
+        if since <= os.path.getmtime(g) < until]
     if not files:
         return None, None
     f = max(files, key=os.path.getmtime)
@@ -103,7 +105,7 @@ def latest_bench(run_root, arm):
 # --------------------------------------------------------------------------- #
 # MIB (per (boot-file, proc) latest values; counters are cumulative per netns)
 # --------------------------------------------------------------------------- #
-def mib_totals(run_root, arm, since=0.0):
+def mib_totals(run_root, arm, since=0.0, until=float("inf")):
     """Sum MPTcpExt event counters across the arm's current-run boot files.
 
     Counters are cumulative within a netns, but a netns is recreated whenever
@@ -120,7 +122,7 @@ def mib_totals(run_root, arm, since=0.0):
     # (file, proc) -> {counter: [accumulated_total, current_segment_max]}
     segs = {}
     for f in sorted(glob.glob(os.path.join(d, "mib.*.log"))):
-        if os.path.getmtime(f) < since:
+        if not (since <= os.path.getmtime(f) < until):
             continue
         try:
             fh = open(f)
@@ -162,13 +164,13 @@ INFRA_RE = re.compile(
 )
 
 
-def crash_list(run_root, arm, since=0.0):
+def crash_list(run_root, arm, since=0.0, until=float("inf")):
     d = os.path.join(run_root, "workdir_baseline_" + arm, "crashes")
     out = []
     for sig in sorted(glob.glob(os.path.join(d, "*"))):
         if not os.path.isdir(sig):
             continue
-        if os.path.getmtime(sig) < since:
+        if not (since <= os.path.getmtime(sig) < until):
             continue
         desc = ""
         dp = os.path.join(sig, "description")
@@ -183,12 +185,12 @@ def crash_list(run_root, arm, since=0.0):
 # --------------------------------------------------------------------------- #
 # BRF verifier stats (BRF-only)  -- "<ts> <n> ACCEPT|REJECT <reason...>"
 # --------------------------------------------------------------------------- #
-def verifier_tally(run_root, since=0.0):
+def verifier_tally(run_root, since=0.0, until=float("inf")):
     d = os.path.join(run_root, "workdir_baseline_brf", "brf_verifier_stats")
     acc = rej = 0
     reasons = {}
     for f in glob.glob(os.path.join(d, "stats.*.log")):
-        if os.path.getmtime(f) < since:
+        if not (since <= os.path.getmtime(f) < until):
             continue
         try:
             fh = open(f)
@@ -213,6 +215,31 @@ def verifier_tally(run_root, since=0.0):
 
 
 # --------------------------------------------------------------------------- #
+def has_run_data(run_root):
+    """True if run_root looks like a baseline run dir (the syz_manager dir):
+    it has the per-arm workdirs and/or the bench logs.  Used to fail loudly
+    instead of silently rendering an empty report when the wrong dir is given
+    (e.g. running from the repo with no argument)."""
+    return any(os.path.isdir(os.path.join(run_root, d)) for d in
+               ("workdir_baseline_stock", "workdir_baseline_brf", "baseline_logs"))
+
+
+def resolve_run_root(args):
+    """Pick run_root: explicit arg > $BASELINE_RUN_ROOT > cwd.  Exit with a
+    helpful message if it has no baseline data."""
+    rr = args[0] if args else os.environ.get("BASELINE_RUN_ROOT") or os.getcwd()
+    rr = os.path.abspath(rr)
+    if not has_run_data(rr):
+        sys.stderr.write(
+            "error: no baseline run data under:\n  %s\n"
+            "  expected workdir_baseline_{stock,brf}/ and baseline_logs/ there.\n"
+            "  Pass the syz_manager run dir (or set BASELINE_RUN_ROOT), e.g.:\n"
+            "    %s <.../brf_protocol_fuzz_setup/syz_manager>\n"
+            % (rr, os.path.basename(sys.argv[0])))
+        sys.exit(2)
+    return rr
+
+
 def ledger_tail(run_root, k=6):
     f = os.path.join(run_root, "baseline_run_ledger.tsv")
     if not os.path.exists(f):
@@ -238,6 +265,69 @@ def current_run_start(run_root):
                 pass
     # small slack: a VM's first mib append lands a few seconds after START
     return max(0.0, start - 15.0)
+
+
+def list_runs(run_root):
+    """Parse the ledger into the sequence of fuzzing RUNS.  The ledger
+    (written by baseline_control.sh) is the source of truth: each
+    SESSION_START opens a run; the matching SESSION_STOP (or the next
+    SESSION_START, or 'now' if still up) closes it.  All telemetry files pile
+    into shared dirs and are attributed to a run *logically* by their mtime
+    falling in [run.start, next_run.start) -- there is no per-run subdir.
+
+    Returns a list (oldest first) of dicts:
+      {idx, start, end, label(iso), status, dur_h}
+    status is 'running' (open, latest), 'stopped' (has a SESSION_STOP), or
+    'superseded' (no stop, but a later run started)."""
+    f = os.path.join(run_root, "baseline_run_ledger.tsv")
+    if not os.path.exists(f):
+        return []
+    events = []
+    for ln in open(f).read().splitlines():
+        p = ln.split("\t")
+        if len(p) < 2:
+            continue
+        try:
+            ts = datetime.strptime(p[0], "%Y-%m-%dT%H:%M:%S%z").timestamp()
+        except ValueError:
+            continue
+        if p[1] in ("SESSION_START", "SESSION_STOP"):
+            events.append((ts, p[1], p[0]))
+    starts = [e for e in events if e[1] == "SESSION_START"]
+    runs = []
+    for i, (ts, _, iso) in enumerate(starts):
+        nxt = starts[i + 1][0] if i + 1 < len(starts) else None
+        stop = next((e[0] for e in events if e[1] == "SESSION_STOP"
+                     and e[0] > ts and (nxt is None or e[0] < nxt)), None)
+        if stop:
+            end, status = stop, "stopped"
+        elif nxt is not None:
+            end, status = nxt, "superseded"
+        else:
+            end, status = None, "running"
+        dur_h = ((end or time.time()) - ts) / 3600.0
+        runs.append({"idx": i + 1, "start": ts, "end": end,
+                     "label": iso, "status": status, "dur_h": dur_h})
+    return runs
+
+
+def run_window(run_root, run_sel):
+    """Map a run selection to a (since, until) mtime window for filtering.
+      run_sel = None / 'latest' -> the current/last run (until = inf)
+      run_sel = 'all'           -> everything (since=0, until=inf)
+      run_sel = <int idx>       -> that run's [start, next_start) window
+    Returns (since, until)."""
+    runs = list_runs(run_root)
+    if run_sel in (None, "latest"):
+        return (current_run_start(run_root), float("inf"))
+    if run_sel == "all":
+        return (0.0, float("inf"))
+    for r in runs:
+        if r["idx"] == int(run_sel):
+            nxt = next((x["start"] for x in runs if x["idx"] == r["idx"] + 1),
+                       float("inf"))
+            return (max(0.0, r["start"] - 15.0), nxt)
+    raise SystemExit("no such run index: %s (have 1..%d)" % (run_sel, len(runs)))
 
 
 def row(label, a, b, w=34):
@@ -293,6 +383,56 @@ def _spark(vals, width=46):
     return "".join(r[int((v - lo) / rng * (len(r) - 1) + 0.5)] for v in vals)
 
 
+def coverage_growth(series, window_s=6 * 3600):
+    """Coverage growth (%) over the trailing `window_s` of a run.  Returns
+    (growth_pct, uptime_hours) or ("early", uptime_hours) if the run is shorter
+    than the window, or None if no data.  Used to decide saturation."""
+    if not series:
+        return None
+    s = sorted(series)
+    u_now, c_now = s[-1]
+    if u_now < window_s:
+        return ("early", u_now / 3600.0)
+    target = u_now - window_s
+    c_then = s[0][1]
+    for u, c in s:
+        if u <= target:
+            c_then = c
+        else:
+            break
+    g = 100.0 * (c_now - c_then) / c_then if c_then else 0.0
+    return (g, u_now / 3600.0)
+
+
+def plateau_status(run_root, thresh=3.0):
+    """One-line saturation verdict: per-arm trailing-6h coverage growth plus a
+    stop/keep-going call.  Saturated => the coverage delta is a settled-enough
+    number and the run is safe to stop or repeat."""
+    parts, saturated, early = [], True, False
+    for arm in ARMS:
+        g = coverage_growth(bench_series(run_root, arm))
+        if g is None:
+            parts.append("%s=n/a" % arm)
+            saturated = False
+            continue
+        val, uh = g
+        if val == "early":
+            parts.append("%s: only %.1fh" % (arm, uh))
+            early = True
+            saturated = False
+        else:
+            parts.append("%s +%.1f%%/6h" % (arm, val))
+            if val >= thresh:
+                saturated = False
+    if early:
+        verdict = "TOO EARLY -- need >=~6h to judge (rule: <%.0f%%/6h both arms)" % thresh
+    elif saturated:
+        verdict = "SATURATED -- coverage settled; safe to stop / start next repeat"
+    else:
+        verdict = "STILL CLIMBING -- keep running for a settled delta"
+    return "trailing-6h coverage growth: " + ", ".join(parts) + "  => " + verdict
+
+
 def _bucketize(series, nb, umax):
     """Bucket cumulative (uptime, value) into nb time buckets over [0, umax];
     each bucket = latest value seen in it, forward-filled (carry-forward)."""
@@ -320,6 +460,26 @@ STAGES = [
 ]
 
 
+def stall_diagnosis(m):
+    """Data-driven 'where does this arm get stuck' line, attributing the stall
+    to a concrete protocol reason (defends the fairness of the comparison: it
+    is NOT that the baseline is misconfigured, it is structural)."""
+    syn = m.get("MPCapableSYNTX", 0)
+    est = m.get("MPCapableACKRX", 0)
+    jsyn = m.get("MPJoinSynRx", 0)
+    jok = m.get("MPJoinAckRx", 0)
+    if syn == 0:
+        return "no MP_CAPABLE traffic generated at all"
+    if est == 0:
+        return ("sends MP_CAPABLE SYNs but completes 0 handshakes -- no MPTCP "
+                "listener paired in the per-proc netns (SYNTX>0, SYNRX/ACKRX=0)")
+    if jsyn == 0:
+        return "establishes connections but never attempts an MP_JOIN subflow"
+    if jok == 0:
+        return "attempts MP_JOIN but never passes the HMAC gate (0 valid joins)"
+    return "reaches AND passes the MP_JOIN HMAC gate (drives the full flow)"
+
+
 def present_view(run_root, scope_all=False):
     """Conference-style side-by-side picture (illustrative; ASCII-only)."""
     since = 0.0 if scope_all else current_run_start(run_root)
@@ -345,11 +505,13 @@ def present_view(run_root, scope_all=False):
         print("  %s" % lab)
         print("      stock %5d |%s" % (s, _bar(s, gmax) or "  (none -- never reached)"))
         print("      brf   %5d |%s" % (b, _bar(b, gmax)))
-    print("\n  >> stock stops at the FIRST SYN: with random syscalls it never")
-    print("     pairs an MPTCP client+server in one netns, so 0 handshakes")
-    print("     complete and the crypto/HMAC code is UNREACHABLE for stock.")
-    print("  >> BRF's state-carrier harness drives the whole flow -- it reaches")
-    print("     AND passes the MP_JOIN HMAC gate, and exercises the reset path.")
+    print("\n  WHERE EACH ARM STALLS (attributed from the MIB -- not a config artefact):")
+    print("      stock : %s" % stall_diagnosis(mst))
+    print("      brf   : %s" % stall_diagnosis(mbr))
+    print("  >> stock's stall is STRUCTURAL: random syscalls do not pair an MPTCP")
+    print("     client+server in one netns, so the crypto/HMAC code is unreachable")
+    print("     -- and no amount of run time changes that.  This is the gap the")
+    print("     state-carrier harness is built to close.")
 
     # --- conversion rate: the volume-independent rebuttal -----------------
     def conv(m, num, den):
@@ -367,10 +529,14 @@ def present_view(run_root, scope_all=False):
     cs, cb = ost.get("coverage", 0), obr.get("coverage", 0)
     cmax = max(cs, cb, 1)
     delta = (100.0 * (cb - cs) / cs) if cs else 0.0
+    upt_h = max(ost.get("uptime", 0), obr.get("uptime", 0)) / 3600.0
     print("\n  " + "-" * 68)
-    print("  MPTCP-SCOPED COVERAGE (kernel PCs hit on the contested surface)\n")
+    print("  MPTCP-SCOPED COVERAGE  (DIRECTIONAL -- a coverage delta needs a long,")
+    print("  repeated run to be a settled number; the STRUCTURAL result is the")
+    print("  funnel above, which holds at any run length)\n")
     print("      stock %6d |%s" % (cs, _bar(cs, cmax, 30)))
-    print("      brf   %6d |%s   (+%.0f%%)" % (cb, _bar(cb, cmax, 30), delta))
+    print("      brf   %6d |%s   (+%.0f%%, directional, ~%.1fh run)"
+          % (cb, _bar(cb, cmax, 30), delta, upt_h))
 
     # --- coverage trajectory (is the gap stable, or a lucky instant?) -----
     ss, bs = bench_series(run_root, "stock"), bench_series(run_root, "brf")
@@ -399,6 +565,7 @@ def present_view(run_root, scope_all=False):
                       % (_spark(ratios), min(settled), max(settled), ratios[-1]))
                 print("  >> the lead holds (in fact widens) across the run -- not a"
                       " lucky instant.")
+    print("\n  " + plateau_status(run_root))
 
     # --- the quantitative gate story --------------------------------------
     ok = mbr.get("MPJoinAckRx", 0)
@@ -463,6 +630,7 @@ def report(run_root, scope_all=False):
             return round(o.get("exec total", 0) / o["uptime"], 1)
         return None
     print(row("exec/sec (this bench)", c(rate("stock")), c(rate("brf"))))
+    print("  " + plateau_status(run_root))
 
     # 3. MP_JOIN funnel (the contrast)
     print("\n[3] MP_JOIN CRYPTO-GATE FUNNEL (MPTcpExt MIB, summed per netns)")
@@ -498,6 +666,11 @@ def report(run_root, scope_all=False):
     print(row("  MP_CAPABLE est. / 1k execs",
               per1k("stock", mst, "MPCapableACKRX"),
               per1k("brf", mbr, "MPCapableACKRX")))
+    # where each arm stalls (attributed -- defends the baseline's fairness)
+    print("  " + "-" * 68)
+    print("  where each arm stalls (structural, not a config artefact):")
+    print("    stock : " + stall_diagnosis(mst))
+    print("    brf   : " + stall_diagnosis(mbr))
 
     # 4. crashes
     print("\n[4] CRASHES (per arm; [infra] = harness noise, not a kernel bug)")
@@ -524,8 +697,69 @@ def report(run_root, scope_all=False):
     print()
 
 
+def list_runs_view(run_root):
+    runs = list_runs(run_root)
+    print("RUNS (from the ledger; data is attributed to a run by mtime window)")
+    print("  run  start             status      dur(h)")
+    print("  " + "-" * 46)
+    for r in runs:
+        print("  %-4d %-17s %-11s %6.1f"
+              % (r["idx"], r["label"][:16].replace("T", " "), r["status"], r["dur_h"]))
+    if not runs:
+        print("  (none -- ledger empty; start a run via baseline_control.sh)")
+    else:
+        print("\n  default scope = latest run (#%d).  Use --run <idx> to target a"
+              % runs[-1]["idx"])
+        print("  past run, --runs-summary for the cross-run rollup, --all for cumulative.")
+
+
+def runs_summary(run_root):
+    runs = list_runs(run_root)
+    print("=" * 70)
+    print("  CROSS-RUN ROLLUP  (one row per ledger run; band across runs)")
+    print("=" * 70)
+    print("  run  start          status      dur_h   stockCov    brfCov   cov_delta  brfJoins")
+    print("  " + "-" * 78)
+    deltas, hidden = [], 0
+    for r in runs:
+        s, u = run_window(run_root, r["idx"])
+        ost = latest_bench(run_root, "stock", s, u)[1] or {}
+        obr = latest_bench(run_root, "brf", s, u)[1] or {}
+        mbr = mib_totals(run_root, "brf", s, u)[0]
+        cs, cb = ost.get("coverage", 0), obr.get("coverage", 0)
+        # hide empty/aborted stubs (no coverage data and not the live run)
+        if cs == 0 and cb == 0 and r["status"] != "running":
+            hidden += 1
+            continue
+        d = (100.0 * (cb - cs) / cs) if cs else 0.0
+        joins = mbr.get("MPJoinAckRx", 0)
+        if cs:
+            deltas.append(d)
+        print("  %-4d %-14s %-11s %5.1f  %9d %9d   %+6.0f%%  %8d"
+              % (r["idx"], r["label"][5:16].replace("T", " "), r["status"],
+                 r["dur_h"], cs, cb, d, joins))
+    print("  " + "-" * 78)
+    if hidden:
+        print("  (%d empty/aborted run(s) hidden)" % hidden)
+    if len(deltas) >= 2:
+        sd = sorted(deltas)
+        med = sd[len(sd) // 2]
+        print("  coverage delta across %d run(s) with data:  min %+.0f%%   median "
+              "%+.0f%%   max %+.0f%%" % (len(deltas), min(deltas), med, max(deltas)))
+        print("  >> report the delta as this RANGE across runs, not one number.")
+    else:
+        print("  (need >=2 completed runs for a min/max band; %d so far)" % len(deltas))
+    print("  NOTE: only completed/long runs are meaningful -- check plateau per run.")
+
+
 def main():
     args = [a for a in sys.argv[1:]]
+    if "--list-runs" in args:
+        list_runs_view(resolve_run_root([a for a in args if a != "--list-runs"]))
+        return
+    if "--runs-summary" in args:
+        runs_summary(resolve_run_root([a for a in args if a != "--runs-summary"]))
+        return
     watch = None
     if "--watch" in args:
         i = args.index("--watch")
@@ -540,8 +774,7 @@ def main():
         present = True
         args.remove("--present")
     render = present_view if present else report
-    run_root = args[0] if args else os.getcwd()
-    run_root = os.path.abspath(run_root)
+    run_root = resolve_run_root(args)
     if watch:
         try:
             while True:

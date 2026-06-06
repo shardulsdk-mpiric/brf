@@ -79,8 +79,8 @@ def panel_coverage(a, d):
         a.fill_between(x, y, color=BRF_C, alpha=0.12)
     cs, cb = d["ost"].get("coverage", 0), d["obr"].get("coverage", 0)
     dlt = (100.0 * (cb - cs) / cs) if cs else 0.0
-    a.set_title("Coverage over time  (MPTCP-scoped PCs)   BRF +%.0f%%" % dlt,
-                fontsize=11)
+    a.set_title("Coverage over time  (MPTCP-scoped PCs)   BRF +%.0f%% (directional)"
+                % dlt, fontsize=11)
     a.set_xlabel("run time (min)")
     a.set_ylabel("unique kernel PCs")
     a.legend(loc="lower right")
@@ -245,7 +245,7 @@ def main():
         i = args.index("-o")
         out = args[i + 1]
         del args[i:i + 2]
-    run_root = os.path.abspath(args[0] if args else os.getcwd())
+    run_root = bs.resolve_run_root(args)
 
     def once():
         stamp = time.strftime("%Y%m%d_%H%M%S")

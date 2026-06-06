@@ -77,7 +77,21 @@ coverage instrumentation; only the harness differs.*
   baseline_summary.py <run_root> --watch 30 # refresh every 30s
   baseline_summary.py <run_root> --all      # ignore run scoping (cumulative)
   baseline_summary.py <run_root> --present  # conference-style picture (ASCII funnel)
+  baseline_summary.py <run_root> --list-runs    # list the runs the ledger knows about
+  baseline_summary.py <run_root> --runs-summary # cross-run rollup + min/max delta band
   ```
+  **Single vs multiple runs.**  `baseline_control.sh` writes a ledger
+  (`baseline_run_ledger.tsv`) with a `SESSION_START`/`SESSION_STOP` per run.
+  That ledger is the source of truth: each run is the interval
+  `[SESSION_START, next SESSION_START)`, and every telemetry file (MIB, bench,
+  crash, verifier) is attributed to a run *logically* by its mtime falling in
+  that window -- files are NOT physically separated into per-run dirs.  So the
+  same dirs hold all runs, and the tools slice by ledger interval:
+  default = the latest run; `--all` = cumulative; `--runs-summary` = one row
+  per run with a min/max coverage-delta band across runs (the cheap stand-in
+  for the paper's confidence bands).  A **trailing-6h coverage-growth /
+  saturation** line is printed in `[2]` and `--present` (rule: `<3%/6h` on
+  both arms => settled, safe to stop/repeat).
   The `--present` view renders the audience-facing story: a monotonic
   "how deep into the MPTCP handshake does each fuzzer reach?" funnel
   (stock stalls at the first SYN; BRF descends to the HMAC gate);
@@ -108,6 +122,13 @@ coverage instrumentation; only the harness differs.*
   Panels are factored out (`PANELS` list), so `--split` and the combined
   dashboard render the exact same charts.  `--watch N -o live.png` keeps a
   single file refreshed (open it in any image viewer that auto-reloads).
+
+**`run_root` for all three tools is the syz_manager run dir** -- the dir that
+holds `workdir_baseline_{stock,brf}/` and `baseline_logs/`, NOT the BRF repo.
+Pass it as the first argument, or set `BASELINE_RUN_ROOT` once to avoid
+retyping.  Run from the wrong dir (e.g. the repo, with no argument) and the
+tools now exit with a pointer to the right dir instead of rendering an empty
+report/plot.
 
 ## Build (in the dev_env VM, for symmetry with the BRF build)
 
