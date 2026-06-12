@@ -40,7 +40,7 @@ FAIL_C = "#c2410c"    # orange       -- HMAC failures
 
 STAGES = [
     ("MPCapableSYNTX", "MP_CAPABLE\nSYN sent"),
-    ("MPCapableACKRX", "MP_CAPABLE\nestablished"),
+    ("MPCapableSYNACKRX", "MP_CAPABLE\nestablished"),
     ("MPJoinSynRx", "MP_JOIN SYN\n(subflow)"),
     ("MPJoinAckRx", "MP_JOIN HMAC\nvalid join"),
 ]
@@ -61,8 +61,8 @@ def gather(run_root, scope_all=False):
         "ost": ost, "obr": obr,
         "mst": bs.mib_totals(run_root, "stock", since)[0],
         "mbr": bs.mib_totals(run_root, "brf", since)[0],
-        "ss": bs.bench_series(run_root, "stock"),
-        "bsr": bs.bench_series(run_root, "brf"),
+        "ss": bs.bench_series(run_root, "stock", "filtered coverage"),
+        "bsr": bs.bench_series(run_root, "brf", "filtered coverage"),
         "upt_min": max(ost.get("uptime", 0), obr.get("uptime", 0)) / 60.0,
     }
 
@@ -77,12 +77,15 @@ def panel_coverage(a, d):
         x, y = _series_minutes(d["bsr"])
         a.plot(x, y, color=BRF_C, lw=2.2, label="BRF")
         a.fill_between(x, y, color=BRF_C, alpha=0.12)
-    cs, cb = d["ost"].get("coverage", 0), d["obr"].get("coverage", 0)
+    cs, cb = d["ost"].get("filtered coverage", 0), d["obr"].get("filtered coverage", 0)
+    tcs, tcb = d["ost"].get("coverage", 0), d["obr"].get("coverage", 0)
     dlt = (100.0 * (cb - cs) / cs) if cs else 0.0
-    a.set_title("Coverage over time  (MPTCP-scoped PCs)   BRF +%.0f%% (directional)"
-                % dlt, fontsize=11)
+    tdlt = (100.0 * (tcb - tcs) / tcs) if tcs else 0.0
+    a.set_title("MPTCP-scoped coverage (cover_filter)  BRF %+.0f%% (directional)\n"
+                "[whole-kernel %+.0f%% -- NOT MPTCP cov: BRF completes connections]"
+                % (dlt, tdlt), fontsize=10)
     a.set_xlabel("run time (min)")
-    a.set_ylabel("unique kernel PCs")
+    a.set_ylabel("MPTCP-scoped PCs (cover_filter)")
     a.legend(loc="lower right")
     a.grid(alpha=0.25)
     if cb:
@@ -154,28 +157,40 @@ def panel_gate(a, d):
     mst, mbr = d["mst"], d["mbr"]
     ok = mbr.get("MPJoinAckRx", 0)
     fail = mbr.get("MPJoinAckHMacFailure", 0) + mbr.get("MPJoinSynAckHMacFailure", 0)
-    syn_s, est_s = mst.get("MPCapableSYNTX", 0), mst.get("MPCapableACKRX", 0)
-    syn_b, est_b = mbr.get("MPCapableSYNTX", 0), mbr.get("MPCapableACKRX", 0)
-    conv_s = (100.0 * est_s / syn_s) if syn_s else 0.0
-    conv_b = (100.0 * est_b / syn_b) if syn_b else 0.0
-    a.bar(["stock", "BRF"], [0, ok], color=BRF_C, label="HMAC pass (valid join)")
-    a.bar(["stock", "BRF"], [0, fail], bottom=[0, ok], color=FAIL_C,
-          label="HMAC fail (reset path)")
-    a.set_title("At the MP_JOIN HMAC gate  (security-critical crypto)",
-                fontsize=11)
+    s_ok = mst.get("MPJoinAckRx", 0)
+    s_fail = mst.get("MPJoinAckHMacFailure", 0) + mst.get("MPJoinSynAckHMacFailure", 0)
+    syn_s, est_s = mst.get("MPCapableSYNTX", 0), mst.get("MPCapableSYNACKRX", 0)
+    syn_b, est_b = mbr.get("MPCapableSYNTX", 0), mbr.get("MPCapableSYNACKRX", 0)
+
+    def pct(num, den):
+        if not den:
+            return "n/a"
+        p = 100.0 * num / den
+        return ("%.2f%%" % p) if 0 < p < 1 else ("%.0f%%" % p)
+
+    # plot BOTH arms' real pass/fail (stock is NOT hardcoded to 0 -- long runs
+    # show stock reaches the gate incidentally via kernel-PM).
+    a.bar(["stock", "BRF"], [s_ok, ok], color=BRF_C, label="HMAC pass (valid join)")
+    a.bar(["stock", "BRF"], [s_fail, fail], bottom=[s_ok, ok], color=FAIL_C,
+          label="HMAC fail (reset/mutated path)")
+    a.set_title("At the MP_JOIN HMAC gate  (security-critical crypto)", fontsize=11)
     a.set_ylabel("MP_JOIN ACKs reaching the gate")
     a.legend(loc="upper left", fontsize=9)
     a.grid(alpha=0.25, axis="y")
-    a.text(0, max(ok + fail, 1) * 0.5,
-           "never\nreaches\nthe gate", ha="center", va="center",
-           fontsize=9, color="#777")
+    top = max(ok + fail, 1)
+    if s_ok + s_fail == 0:
+        a.text(0, top * 0.5, "has not\nreached\nthe gate", ha="center",
+               va="center", fontsize=9, color="#777")
+    else:
+        a.text(0, s_ok + s_fail, "  %d pass / %d fail\n  (incidental, kernel-PM)"
+               % (s_ok, s_fail), ha="center", va="bottom", fontsize=8, color="#333")
     if ok + fail:
         a.text(1, ok + fail, "  %d pass / %d fail" % (ok, fail),
                ha="center", va="bottom", fontsize=9, fontweight="bold")
     a.annotate(
-        "SYN->established conversion (per attempt, volume-independent):\n"
-        "   stock %.0f%% (%d/%d)        BRF %.0f%% (%d/%d)"
-        % (conv_s, est_s, syn_s, conv_b, est_b, syn_b),
+        "per-attempt conversion (volume-indep): stock %s vs BRF %s   |   "
+        "mutated HMAC-reject path: stock %d vs BRF %d"
+        % (pct(est_s, syn_s), pct(est_b, syn_b), s_fail, fail),
         xy=(0.5, -0.18), xycoords="axes fraction", ha="center", fontsize=8.5,
         color="#333")
 

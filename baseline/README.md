@@ -183,3 +183,16 @@ build helper carries the flag so it never has to be recalled by hand.
 Syzkaller (Vyukov et al., `google/syzkaller`) is the engine; BRF (Hung &
 Amiri Sani, arXiv:2305.08782) is the runtime fuzzer this work extends.
 See `../findings/methodology.md` Sec 7.
+
+## Campaign results (2026-06, 3-run controlled comparison)
+
+The June-2026 fair coverage-comparison campaign (stock syzkaller vs the BRF
+MPTCP harness, 3 independent saturated runs on a frozen base) is recorded as a
+**removable research artifact** in `results/`:
+- `results/RESULTS.md` -- verified numbers, claim-strength ordering (reject-path
+  BRF-exclusive = the durable result; coverage as a directional band, with the
+  cover_filter "filtered coverage" vs whole-kernel "coverage" distinction),
+  honesty boundaries, and the reproducibility pin.
+- `results/BoF_3run_figure.png` -- the BoF figure (regen: `baseline_bof_figure.py`).
+Raw per-run telemetry/crash dirs live outside the repo (syz_manager run dir);
+`results/` can be removed with `git rm` once it has served its purpose.

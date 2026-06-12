@@ -41,7 +41,10 @@ ARMS = ("stock", "brf")
 # rather than "attempts base connections but cannot complete the handshake".
 FUNNEL = [
     ("MPCapableSYNTX", "MP_CAPABLE SYN sent (attempt)"),
-    ("MPCapableACKRX", "MP_CAPABLE established"),
+    # "established" = SYNACKRX (handshake negotiated), NOT ACKRX (server final-ACK,
+    # passive only): stock establishes asymmetrically / via simultaneous-connect so
+    # ACKRX undercounts it (reads ~0 while joins>0); SYNACKRX stays >= the joins.
+    ("MPCapableSYNACKRX", "MP_CAPABLE established (handshake)"),
     ("MPJoinSynRx", "MP_JOIN SYN rx (token lookup)"),
     ("MPJoinSynAckRx", "MP_JOIN SYN/ACK rx"),
     ("MPJoinAckRx", "MP_JOIN ACK, HMAC VALID"),
@@ -56,7 +59,11 @@ FUNNEL = [
 # Headline bench fields (key in bench json -> short label). Schema-tolerant:
 # absent keys are shown as n/a.
 BENCH_FIELDS = [
-    ("coverage", "coverage (PCs)"),
+    # "filtered coverage" = cover_filter (MPTCP-scoped); "coverage" = whole-kernel
+    # (syzkaller: corpus.go StatCover vs syz-manager statCoverFiltered).  Keep them
+    # DISTINCT -- the whole-kernel number is NOT "MPTCP coverage".
+    ("filtered coverage", "MPTCP-scoped cov (cover_filter)"),
+    ("coverage", "whole-kernel cov (total)"),
     ("corpus", "corpus"),
     ("exec total", "exec total"),
     ("crashes", "crashes"),
@@ -343,7 +350,7 @@ def _bar(v, vmax, w=26, ch="#"):
 SPARK_RAMP = "_.-=+*#@"  # ASCII height ramp, low -> high (legend printed with it)
 
 
-def bench_series(run_root, arm):
+def bench_series(run_root, arm, field="coverage"):
     """All (uptime_s, coverage) snapshots from the arm's latest bench file,
     in time order.  Coverage is cumulative, so the series is non-decreasing."""
     f = latest_bench(run_root, arm)[0]
@@ -364,8 +371,8 @@ def bench_series(run_root, arm):
             obj, i = dec.raw_decode(text, i)
         except json.JSONDecodeError:
             break
-        if "coverage" in obj:
-            out.append((obj.get("uptime", 0), obj["coverage"]))
+        if field in obj:
+            out.append((obj.get("uptime", 0), obj[field]))
     return out
 
 
@@ -454,30 +461,41 @@ def _bucketize(series, nb, umax):
 # separately below rather than as a funnel bar.
 STAGES = [
     ("MPCapableSYNTX", "MP_CAPABLE SYN sent (attempt)"),
-    ("MPCapableACKRX", "MP_CAPABLE connection established"),
+    ("MPCapableSYNACKRX", "MP_CAPABLE established (handshake)"),
     ("MPJoinSynRx", "MP_JOIN SYN -- subflow attempt"),
     ("MPJoinAckRx", "MP_JOIN reaches HMAC gate + PASSES"),
 ]
 
 
 def stall_diagnosis(m):
-    """Data-driven 'where does this arm get stuck' line, attributing the stall
-    to a concrete protocol reason (defends the fairness of the comparison: it
-    is NOT that the baseline is misconfigured, it is structural)."""
+    """Data-driven 'how far does this arm get' line.  Rate- AND failure-path-
+    aware: distinguishes reaching the HMAC gate AT SCALE from reaching it only
+    INCIDENTALLY (e.g. stock via kernel-PM, where the kernel computes valid
+    HMACs itself), and flags whether the MUTATED HMAC-reject/reset path is
+    exercised at all -- which is the security-critical, harness-specific
+    surface.  Long runs show the baseline is NOT a hard zero at the gate."""
     syn = m.get("MPCapableSYNTX", 0)
-    est = m.get("MPCapableACKRX", 0)
+    est = m.get("MPCapableSYNACKRX", 0)  # handshake-negotiated (see FUNNEL note)
     jsyn = m.get("MPJoinSynRx", 0)
     jok = m.get("MPJoinAckRx", 0)
+    fail = m.get("MPJoinAckHMacFailure", 0) + m.get("MPJoinSynAckHMacFailure", 0)
+    conv = (100.0 * est / syn) if syn else 0.0
     if syn == 0:
         return "no MP_CAPABLE traffic generated at all"
     if est == 0:
-        return ("sends MP_CAPABLE SYNs but completes 0 handshakes -- no MPTCP "
-                "listener paired in the per-proc netns (SYNTX>0, SYNRX/ACKRX=0)")
+        return ("sends MP_CAPABLE SYNs but completes 0 handshakes (SYNTX>0, "
+                "ACKRX=0) -- no MPTCP peer paired in the per-proc netns")
     if jsyn == 0:
-        return "establishes connections but never attempts an MP_JOIN subflow"
+        return ("establishes %d connections (%.2f%% of SYNs) but never attempts "
+                "an MP_JOIN subflow" % (est, conv))
     if jok == 0:
-        return "attempts MP_JOIN but never passes the HMAC gate (0 valid joins)"
-    return "reaches AND passes the MP_JOIN HMAC gate (drives the full flow)"
+        return "attempts %d MP_JOIN(s) but none pass the HMAC gate" % jsyn
+    if fail == 0:
+        return ("reaches the HMAC gate -- %d VALID joins (%.2f%% conversion) -- "
+                "but ONLY the kernel-computed-valid path: 0 HMAC failures, i.e. "
+                "no mutated/reject-path coverage" % (jok, conv))
+    return ("drives the FULL flow incl. the mutated reject path: %d valid joins "
+            "(%.2f%% conversion) + %d HMAC failures/resets" % (jok, conv, fail))
 
 
 def present_view(run_root, scope_all=False):
@@ -505,13 +523,27 @@ def present_view(run_root, scope_all=False):
         print("  %s" % lab)
         print("      stock %5d |%s" % (s, _bar(s, gmax) or "  (none -- never reached)"))
         print("      brf   %5d |%s" % (b, _bar(b, gmax)))
-    print("\n  WHERE EACH ARM STALLS (attributed from the MIB -- not a config artefact):")
+    print("\n  HOW FAR EACH ARM GETS (attributed from the MIB -- not a config artefact):")
     print("      stock : %s" % stall_diagnosis(mst))
     print("      brf   : %s" % stall_diagnosis(mbr))
-    print("  >> stock's stall is STRUCTURAL: random syscalls do not pair an MPTCP")
-    print("     client+server in one netns, so the crypto/HMAC code is unreachable")
-    print("     -- and no amount of run time changes that.  This is the gap the")
-    print("     state-carrier harness is built to close.")
+    # data-driven narrative (no hardcoded absolutes -- long runs show the
+    # baseline reaches the gate incidentally, so the claim is RATE + reject-path)
+    s_ok = mst.get("MPJoinAckRx", 0)
+    b_ok = mbr.get("MPJoinAckRx", 0)
+    s_fail = mst.get("MPJoinAckHMacFailure", 0) + mst.get("MPJoinSynAckHMacFailure", 0)
+    b_fail = mbr.get("MPJoinAckHMacFailure", 0) + mbr.get("MPJoinSynAckHMacFailure", 0)
+    ratio = (b_ok / s_ok) if s_ok else None
+    print("  >> stock reaches the HMAC gate only INCIDENTALLY (via kernel-PM, where")
+    print("     the kernel computes valid HMACs itself); BRF constructs the state")
+    print("     deliberately.  The defensible claims are RATE and the REJECT PATH:")
+    if ratio:
+        print("       - valid joins: stock %d vs BRF %d (~%.0fx)" % (s_ok, b_ok, ratio))
+    else:
+        print("       - valid joins: stock %d vs BRF %d" % (s_ok, b_ok))
+    print("       - MUTATED HMAC-reject/reset path: stock %d vs BRF %d --"
+          % (s_fail, b_fail))
+    print("         the security-critical surface is reached by BRF%s."
+          % (" ONLY" if s_fail == 0 else " far more"))
 
     # --- conversion rate: the volume-independent rebuttal -----------------
     def conv(m, num, den):
@@ -520,26 +552,31 @@ def present_view(run_root, scope_all=False):
                 ) if d else "n/a (0 attempts)"
     print("\n  CONVERSION RATE (per attempt -- does NOT depend on how many tries):")
     print("      SYN sent -> established : stock %-18s brf %s"
-          % (conv(mst, "MPCapableACKRX", "MPCapableSYNTX"),
-             conv(mbr, "MPCapableACKRX", "MPCapableSYNTX")))
+          % (conv(mst, "MPCapableSYNACKRX", "MPCapableSYNTX"),
+             conv(mbr, "MPCapableSYNACKRX", "MPCapableSYNTX")))
     print("  >> this is a RATE gap, not a volume gap: stock converts ~0% of its")
     print("     SYNs to a live connection no matter HOW MANY it sends.")
 
-    # --- coverage headline ------------------------------------------------
-    cs, cb = ost.get("coverage", 0), obr.get("coverage", 0)
+    # --- coverage headline (TWO distinct metrics -- do not conflate) -------
+    cs, cb = ost.get("filtered coverage", 0), obr.get("filtered coverage", 0)  # MPTCP-scoped
+    tcs, tcb = ost.get("coverage", 0), obr.get("coverage", 0)                  # whole-kernel
     cmax = max(cs, cb, 1)
     delta = (100.0 * (cb - cs) / cs) if cs else 0.0
+    tdelta = (100.0 * (tcb - tcs) / tcs) if tcs else 0.0
     upt_h = max(ost.get("uptime", 0), obr.get("uptime", 0)) / 3600.0
     print("\n  " + "-" * 68)
-    print("  MPTCP-SCOPED COVERAGE  (DIRECTIONAL -- a coverage delta needs a long,")
-    print("  repeated run to be a settled number; the STRUCTURAL result is the")
-    print("  funnel above, which holds at any run length)\n")
+    print("  COVERAGE (DIRECTIONAL; structural result is the funnel above)\n")
+    print("    MPTCP-scoped (cover_filter -- the contested surface):")
     print("      stock %6d |%s" % (cs, _bar(cs, cmax, 30)))
-    print("      brf   %6d |%s   (+%.0f%%, directional, ~%.1fh run)"
+    print("      brf   %6d |%s   (+%.0f%%, ~%.1fh run)"
           % (cb, _bar(cb, cmax, 30), delta, upt_h))
+    print("    whole-kernel (total PCs; NOT MPTCP coverage -- BRF completes")
+    print("    connections so it exercises more of the TCP/crypto/netlink stack):")
+    print("      stock %6d   brf %6d   (+%.0f%%)" % (tcs, tcb, tdelta))
 
     # --- coverage trajectory (is the gap stable, or a lucky instant?) -----
-    ss, bs = bench_series(run_root, "stock"), bench_series(run_root, "brf")
+    ss, bs = (bench_series(run_root, "stock", "filtered coverage"),
+             bench_series(run_root, "brf", "filtered coverage"))
     if ss and bs:
         umax = max([u for u, _ in ss] + [u for u, _ in bs] + [1])
         N = 46
@@ -547,7 +584,7 @@ def present_view(run_root, scope_all=False):
         sv = [c for c in sb if c]
         bv = [c for c in bb if c]
         if sv and bv:
-            print("\n  coverage trajectory over the run   (legend: low %s high)"
+            print("\n  MPTCP-scoped coverage trajectory   (legend: low %s high)"
                   % SPARK_RAMP)
             print("      stock  %s  %d->%d" % (_spark(sv), sv[0], sv[-1]))
             print("      brf    %s  %d->%d" % (_spark(bv), bv[0], bv[-1]))
@@ -570,17 +607,23 @@ def present_view(run_root, scope_all=False):
     # --- the quantitative gate story --------------------------------------
     ok = mbr.get("MPJoinAckRx", 0)
     bad = mbr.get("MPJoinAckHMacFailure", 0) + mbr.get("MPJoinSynAckHMacFailure", 0)
-    total_gate = ok + bad
+    s_ok2 = mst.get("MPJoinAckRx", 0)
+    s_bad2 = mst.get("MPJoinAckHMacFailure", 0) + mst.get("MPJoinSynAckHMacFailure", 0)
     print("\n  " + "-" * 68)
     print("  AT THE MP_JOIN HMAC GATE (pass vs fail -- the security-critical code):")
-    print("      stock : never reached the gate (0 joins attempted)")
-    if total_gate:
-        print("      brf   : %d reached it  ->  %d PASS (valid HMAC) / %d FAIL (reset)"
-              % (total_gate, ok, bad))
-        print("              => both the accept path AND the failure/reset path are fuzzed")
-    print("\n  TAKEAWAY:  on the exact surface stock is tuned to hit, stock cannot")
-    print("  get past the opening SYN; BRF reaches the deep MPTCP crypto state")
-    print("  machine -- the gap the harness is built to close.")
+    print("      stock : %d PASS (valid HMAC) / %d FAIL -- valid joins only, via"
+          % (s_ok2, s_bad2))
+    print("              kernel-PM (kernel computes the HMAC); reject path %s"
+          % ("UNTOUCHED" if s_bad2 == 0 else "barely touched"))
+    print("      brf   : %d PASS (valid HMAC) / %d FAIL (mutated/reset path)"
+          % (ok, bad))
+    print("              => BRF fuzzes BOTH the accept path AND the reject/reset path")
+    print("\n  TAKEAWAY:  stock reaches the HMAC gate only incidentally (kernel-PM,")
+    print("  valid-only); BRF drives it ~%s more on the valid path AND is the%s arm"
+          % (("%.0fx" % (ok / s_ok2)) if s_ok2 else "(n/a)x",
+             " ONLY" if s_bad2 == 0 else ""))
+    print("  that exercises the mutated HMAC-reject/reset code -- the gap the")
+    print("  state-carrier harness is built to close.")
     print(line)
 
 
@@ -647,8 +690,12 @@ def report(run_root, scope_all=False):
     print("  derived (volume-independent -- not just 'more attempts'):")
 
     def convrate(m):  # SYN sent -> connection established (per attempt)
-        syn, est = m.get("MPCapableSYNTX", 0), m.get("MPCapableACKRX", 0)
-        return f"{100*est//syn}% ({est}/{syn})" if syn else "n/a"
+        syn, est = m.get("MPCapableSYNTX", 0), m.get("MPCapableSYNACKRX", 0)
+        if not syn:
+            return "n/a"
+        p = 100.0 * est / syn
+        ps = f"{p:.2f}%" if 0 < p < 1 else f"{p:.0f}%"  # don't floor sub-1% to 0
+        return f"{ps} ({est}/{syn})"
     print(row("  SYN->established conversion", convrate(mst), convrate(mbr)))
 
     def passrate(m):
@@ -664,11 +711,11 @@ def report(run_root, scope_all=False):
         return f"{1000*m.get(key,0)/tot:.2f}"
     print(row("  valid joins / 1k execs", per1k("stock", mst), per1k("brf", mbr)))
     print(row("  MP_CAPABLE est. / 1k execs",
-              per1k("stock", mst, "MPCapableACKRX"),
-              per1k("brf", mbr, "MPCapableACKRX")))
+              per1k("stock", mst, "MPCapableSYNACKRX"),
+              per1k("brf", mbr, "MPCapableSYNACKRX")))
     # where each arm stalls (attributed -- defends the baseline's fairness)
     print("  " + "-" * 68)
-    print("  where each arm stalls (structural, not a config artefact):")
+    print("  how far each arm gets (rate- and reject-path-aware):")
     print("    stock : " + stall_diagnosis(mst))
     print("    brf   : " + stall_diagnosis(mbr))
 
